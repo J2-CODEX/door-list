@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const event = {
   title: "Ideas, café y buenas conexiones.",
   date: "21 de noviembre de 2026",
@@ -12,11 +14,12 @@ export default function Home() {
     <div className="mx-auto flex min-h-svh max-w-6xl flex-col px-6 sm:px-10">
       <header className="flex items-center justify-between border-b border-foreground/15 py-7">
         <span className="text-xl font-bold tracking-tight">door list<span className="text-[#719148]">.</span></span>
-        <span className="text-xs tracking-widest uppercase">Nos vemos adentro</span>
+        <Link href="/organizador" className="text-xs tracking-widest uppercase hover:underline">Organizadores ↗</Link>
       </header>
 
       <main className="grid flex-1 items-center gap-12 py-16 md:grid-cols-[1.2fr_1fr] md:gap-16 md:py-24">
         <section aria-labelledby="event-title">
+          <p className="mb-3 text-base font-medium text-[#527436]">¡Bienvenido a Door List! Nos alegra tenerte aquí.</p>
           <p className="mb-6 text-xs font-semibold tracking-[0.2em] uppercase">El próximo encuentro</p>
           <h1 id="event-title" className="max-w-xl text-5xl leading-[1.05] font-semibold tracking-tight sm:text-6xl lg:text-7xl">
             {event.title}

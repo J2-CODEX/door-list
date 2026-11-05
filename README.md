@@ -1,30 +1,15 @@
 # Door List
 
-Landing de un evento con Next.js, App Router, TypeScript y Tailwind CSS v4.
-Solo utiliza las dependencias del scaffold. No incluye autenticación ni base de datos.
+Aplicación Next.js para mostrar un evento y gestionar eventos y tipos de entrada de organizadores.
 
-## Desarrollo
+## Configuración
 
-Requiere Node.js 20.9 o superior y npm.
+1. Instala las dependencias con `npm install`.
+2. Copia `.env.example` a `.env.local` y configura la URL y la clave pública (anon o publishable) de tu proyecto Supabase. Nunca uses la clave de servicio en el navegador.
+3. Aplica las migraciones de `supabase/migrations` en orden a tu proyecto Supabase.
+4. Habilita el acceso por correo y contraseña en Supabase Auth y crea las cuentas de organizador allí.
+5. Ejecuta `npm run dev` y entra en `/organizador`.
 
-```bash
-npm install
-npm run dev
-```
+Cada usuario autenticado administra únicamente sus propios eventos gracias a las políticas RLS. Los eventos publicados y sus tipos de entrada son visibles públicamente mediante la API de Supabase. La landing de `/` sigue mostrando datos de ejemplo.
 
-Abre http://localhost:3000.
-
-## Producción
-
-```bash
-npm run build
-npm start
-```
-
-## Estructura
-
-- `app/page.tsx`: única landing en `/`, con un evento hardcodeado y botón «Registrarme» sin funcionalidad.
-- `app/layout.tsx`: layout raíz, idioma español y metadatos.
-- `app/globals.css`: importación de Tailwind CSS v4 y estilos globales.
-
-Puedes modificar los datos del evento en la constante `event` de `app/page.tsx`.
+Cada evento tiene un límite de asistentes. La suma del aforo de sus tipos de entrada no puede superar ese límite; tampoco se puede reducir el límite por debajo de la suma asignada. La regla se comprueba en la interfaz y en la base de datos, incluso para operaciones concurrentes. Las fechas se introducen y muestran en la zona horaria del navegador.
