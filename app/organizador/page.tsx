@@ -1,17 +1,18 @@
 "use client";
 
 import { createClient, type Session } from "@supabase/supabase-js";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 type Ticket = { id: string; event_id: string; name: string; capacity: number };
 type Event = { id: string; title: string; description: string; starts_at: string; venue: string; status: "draft" | "published"; capacity: number; ticket_types: Ticket[] };
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const supabase = url && key ? createClient(url, key) : null;
-const input = "w-full rounded-lg border border-[#18372c]/25 bg-white px-3 py-2 text-sm";
-const button = "rounded-lg bg-[#18372c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
-const secondary = "rounded-lg border border-[#18372c]/30 px-3 py-2 text-sm font-medium";
+const input = "w-full min-w-0 rounded-xl border border-foreground/15 bg-white px-3.5 py-2.5 text-base shadow-sm transition-colors placeholder:text-foreground/35 hover:border-foreground/30 focus-visible:border-[#719148] focus-visible:outline-2 focus-visible:outline-[#719148]/25 disabled:opacity-60 sm:text-sm";
+const button = "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#315444] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#719148] disabled:pointer-events-none disabled:opacity-50";
+const secondary = "inline-flex cursor-pointer items-center justify-center rounded-xl border border-foreground/15 bg-white px-4 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#719148] disabled:pointer-events-none disabled:opacity-50";
 const emptyEvent = { title: "", description: "", starts_at: "", venue: "", status: "draft" as "draft" | "published", capacity: "" };
 
 function localDate(value: string) {
@@ -27,8 +28,14 @@ export default function Organizer() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [eventError, setEventError] = useState("");
+  const eventTrigger = useRef<HTMLButtonElement | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(emptyEvent);
+  const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
+  const [ticketError, setTicketError] = useState("");
+  const ticketTrigger = useRef<HTMLButtonElement | null>(null);
   const [ticketEvent, setTicketEvent] = useState<string | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [ticketName, setTicketName] = useState("");
@@ -67,27 +74,53 @@ export default function Organizer() {
   async function saveEvent(e: FormEvent) {
     e.preventDefault(); if (!supabase || !session) return;
     const capacity = Number(form.capacity);
-    if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647 || !form.title.trim() || !form.description.trim() || !form.venue.trim() || !form.starts_at || Number.isNaN(new Date(form.starts_at).getTime())) { setMessage("Completa todos los campos y usa un límite válido."); return; }
+    if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647 || !form.title.trim() || !form.description.trim() || !form.venue.trim() || !form.starts_at || Number.isNaN(new Date(form.starts_at).getTime())) { setEventError("Completa todos los campos y usa un límite válido."); return; }
     const allocated = events.find(event => event.id === editing)?.ticket_types.reduce((sum, ticket) => sum + ticket.capacity, 0) ?? 0;
-    if (capacity < allocated) { setMessage(`El límite debe ser al menos ${allocated}, el aforo ya asignado.`); return; }
-    setBusy(true); setMessage("");
+    if (capacity < allocated) { setEventError(`El límite debe ser al menos ${allocated}, el aforo ya asignado.`); return; }
+    setBusy(true); setEventError(""); setMessage("");
     const values = { title: form.title.trim(), description: form.description.trim(), venue: form.venue.trim(), starts_at: new Date(form.starts_at).toISOString(), status: form.status, capacity };
     const { error } = editing ? await supabase.from("events").update(values).eq("id", editing).eq("owner_id", session.user.id) : await supabase.from("events").insert({ ...values, owner_id: session.user.id });
-    if (error) setMessage(error.message); else { setForm(emptyEvent); setEditing(null); await refresh(); setMessage("Evento guardado."); }
+    if (error) setEventError(error.message); else { await refresh(); setSheetOpen(false); setMessage("Evento guardado."); }
     setBusy(false);
   }
+  const selectedTicketEvent = events.find(event => event.id === ticketEvent);
+  const ticketAvailable = selectedTicketEvent
+    ? selectedTicketEvent.capacity - selectedTicketEvent.ticket_types
+      .filter(ticket => ticket.id !== ticketId)
+      .reduce((sum, ticket) => sum + ticket.capacity, 0)
+    : 0;
+
+  function openTicket(event: Event, trigger: HTMLButtonElement, ticket?: Ticket) {
+    ticketTrigger.current = trigger;
+    setTicketEvent(event.id);
+    setTicketId(ticket?.id ?? null);
+    setTicketName(ticket?.name ?? "");
+    setTicketCapacity(ticket ? String(ticket.capacity) : "");
+    setTicketError("");
+    setTicketSheetOpen(true);
+  }
+
   async function saveTicket(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !ticketEvent) return;
-    const event = events.find(item => item.id === ticketEvent); if (!event) return;
+    e.preventDefault(); if (!supabase || !ticketEvent || busy) return;
+    const event = events.find(item => item.id === ticketEvent);
+    if (!event) { setTicketError("El evento ya no está disponible."); return; }
     const capacity = Number(ticketCapacity);
     const allocated = event.ticket_types.filter(ticket => ticket.id !== ticketId).reduce((sum, ticket) => sum + ticket.capacity, 0);
-    if (!ticketName.trim() || !Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647) { setMessage("Indica un nombre y un aforo válido."); return; }
-    if (allocated + capacity > event.capacity) { setMessage(`El aforo disponible para este tipo es ${event.capacity - allocated}.`); return; }
-    setBusy(true); setMessage("");
-    const values = { name: ticketName.trim(), capacity, event_id: ticketEvent };
-    const { error } = ticketId ? await supabase.from("ticket_types").update(values).eq("id", ticketId).eq("event_id", ticketEvent) : await supabase.from("ticket_types").insert(values);
-    if (error) setMessage(error.message); else { setTicketEvent(null); setTicketId(null); setTicketName(""); setTicketCapacity(""); await refresh(); setMessage("Tipo de entrada guardado."); }
-    setBusy(false);
+    if (!ticketName.trim() || !Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647) { setTicketError("Indica un nombre y un aforo válido."); return; }
+    if (allocated + capacity > event.capacity) { setTicketError(`El aforo disponible para este tipo es ${event.capacity - allocated}.`); return; }
+    setBusy(true); setTicketError(""); setMessage("");
+    try {
+      const values = { name: ticketName.trim(), capacity, event_id: ticketEvent };
+      const { error } = ticketId ? await supabase.from("ticket_types").update(values).eq("id", ticketId).eq("event_id", ticketEvent) : await supabase.from("ticket_types").insert(values);
+      if (error) { setTicketError(error.message); return; }
+      await refresh();
+      setTicketSheetOpen(false);
+      setMessage("Tipo de entrada guardado.");
+    } catch {
+      setTicketError("No se pudo guardar el tipo de entrada. Inténtalo de nuevo.");
+    } finally {
+      setBusy(false);
+    }
   }
   async function remove(table: "events" | "ticket_types", id: string) {
     if (!supabase || !window.confirm(table === "events" ? "¿Eliminar este evento y todos sus tipos de entrada?" : "¿Eliminar este tipo de entrada?")) return;
@@ -102,18 +135,90 @@ export default function Organizer() {
     <main className="py-10"><p className="text-xs font-semibold tracking-[.2em] uppercase text-[#527436]">Espacio del organizador</p><h1 className="mt-3 text-4xl font-semibold tracking-tight">Gestiona tus eventos</h1>
       {message && <p role="status" className="mt-6 rounded-lg bg-[#e5edda] p-4 text-sm">{message}</p>}
       {!supabase ? <p className="mt-8">Configura las variables de Supabase para acceder al organizador.</p> : loading ? <p className="mt-8">Cargando sesión…</p> : !session ? <form onSubmit={login} className="mt-8 max-w-md space-y-4 rounded-2xl bg-white p-6"><h2 className="text-xl font-semibold">Iniciar sesión</h2><label className="block text-sm">Correo<input className={`${input} mt-1`} type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label className="block text-sm">Contraseña<input className={`${input} mt-1`} type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label><button disabled={busy} className={button}>Entrar</button></form> : <>
-        <form onSubmit={saveEvent} className="mt-8 grid gap-4 rounded-2xl bg-white p-6 sm:grid-cols-2"><h2 className="text-xl font-semibold sm:col-span-2">{editing ? "Editar evento" : "Crear evento"}</h2>
-          <label className="block text-sm">Nombre<input required className={`${input} mt-1`} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
-          <label className="block text-sm">Lugar<input required className={`${input} mt-1`} value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} /></label>
-          <label className="block text-sm sm:col-span-2">Descripción<textarea required className={`${input} mt-1`} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
-          <label className="block text-sm">Fecha y hora<input required type="datetime-local" className={`${input} mt-1`} value={form.starts_at} onChange={e => setForm({ ...form, starts_at: e.target.value })} /></label>
-          <label className="block text-sm">Límite de asistentes<input required type="number" min="1" max="2147483647" className={`${input} mt-1`} value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></label>
-          <label className="block text-sm">Estado<select className={`${input} mt-1`} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Event["status"] })}><option value="draft">Borrador</option><option value="published">Publicado</option></select></label>
-          <div className="flex items-end gap-2 sm:col-span-2"><button disabled={busy} className={button}>Guardar evento</button>{editing && <button type="button" className={secondary} onClick={() => { setEditing(null); setForm(emptyEvent); }}>Cancelar</button>}</div>
-        </form>
-        <section className="mt-10"><h2 className="text-2xl font-semibold">Tus eventos</h2>{events.length === 0 && <p className="mt-4 text-sm">Aún no tienes eventos.</p>}<div className="mt-4 space-y-5">{events.map(event => { const allocated = event.ticket_types.reduce((sum, ticket) => sum + ticket.capacity, 0); return <article key={event.id} className="rounded-2xl border border-[#18372c]/15 p-6"><div className="flex flex-wrap justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-[#527436]">{event.status === "published" ? "Publicado" : "Borrador"}</p><h3 className="mt-1 text-xl font-semibold">{event.title}</h3><p className="mt-1 text-sm">{new Date(event.starts_at).toLocaleString("es-EC")} · {event.venue}</p><p className="mt-2 text-sm">{event.description}</p><p className="mt-2 text-sm font-medium">Aforo asignado: {allocated} / {event.capacity}</p></div><div className="flex gap-2 self-start"><button className={secondary} onClick={() => { setEditing(event.id); setForm({ ...event, starts_at: localDate(event.starts_at), capacity: String(event.capacity) }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("events", event.id)}>Eliminar</button></div></div>
-          <div className="mt-6 border-t border-[#18372c]/15 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h4 className="font-semibold">Tipos de entrada</h4><button className={secondary} onClick={() => { setTicketEvent(event.id); setTicketId(null); setTicketName(""); setTicketCapacity(""); }}>Agregar tipo</button></div>{event.ticket_types.length === 0 ? <p className="mt-3 text-sm">Sin tipos de entrada.</p> : <ul className="mt-3 space-y-2">{event.ticket_types.map(ticket => <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm"><span>{ticket.name} · {ticket.capacity} plazas</span><span className="flex gap-2"><button className={secondary} onClick={() => { setTicketEvent(event.id); setTicketId(ticket.id); setTicketName(ticket.name); setTicketCapacity(String(ticket.capacity)); }}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("ticket_types", ticket.id)}>Eliminar</button></span></li>)}</ul>}
-          {ticketEvent === event.id && <form onSubmit={saveTicket} className="mt-4 grid gap-3 rounded-lg bg-[#e9eedf] p-4 sm:grid-cols-2"><h5 className="font-semibold sm:col-span-2">{ticketId ? "Editar tipo" : "Nuevo tipo"}</h5><label className="text-sm">Nombre<input required className={`${input} mt-1`} value={ticketName} onChange={e => setTicketName(e.target.value)} /></label><label className="text-sm">Aforo<input required type="number" min="1" max="2147483647" className={`${input} mt-1`} value={ticketCapacity} onChange={e => setTicketCapacity(e.target.value)} /></label><p className="text-xs sm:col-span-2">La suma de los aforos no puede superar el límite del evento.</p><div className="flex gap-2 sm:col-span-2"><button disabled={busy} className={button}>Guardar tipo</button><button type="button" className={secondary} onClick={() => setTicketEvent(null)}>Cancelar</button></div></form>}</div></article>; })}</div></section>
+        <Sheet open={sheetOpen} onOpenChange={open => { if (busy) return; setSheetOpen(open); if (!open) setEventError(""); }}>
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-foreground/10 bg-white p-5 sm:p-6">
+            <div><p className="font-semibold">Cada encuentro empieza aquí</p><p className="mt-1 text-sm text-foreground/60">Crea un evento y organiza sus entradas en un solo lugar.</p></div>
+            <SheetTrigger asChild>
+              <button disabled={busy} className={button} onClick={e => { eventTrigger.current = e.currentTarget; setEditing(null); setForm(emptyEvent); setEventError(""); }}><span aria-hidden="true" className="text-lg leading-none">+</span> Crear evento</button>
+            </SheetTrigger>
+          </div>
+          <SheetContent showCloseButton={!busy} onEscapeKeyDown={e => { if (busy) e.preventDefault(); }} onPointerDownOutside={e => { if (busy) e.preventDefault(); }} onCloseAutoFocus={e => { e.preventDefault(); eventTrigger.current?.focus(); }}>
+            <SheetHeader>
+              <p className="text-[11px] font-semibold tracking-[.18em] text-[#527436] uppercase">Tu próximo encuentro</p>
+              <SheetTitle>{editing ? "Editar evento" : "Crear evento"}</SheetTitle>
+              <SheetDescription>{editing ? "Actualiza los detalles de tu evento y guarda los cambios." : "Dale forma a tu evento. Completa los detalles para empezar a recibir asistentes."}</SheetDescription>
+            </SheetHeader>
+            <form id="event-form" onSubmit={saveEvent} aria-busy={busy} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 sm:p-8">
+              <fieldset disabled={busy} className="min-w-0 space-y-7">
+                <legend className="sr-only">Detalles del evento</legend>
+                <section aria-labelledby="event-details-heading" className="space-y-4">
+                  <h3 id="event-details-heading" className="text-sm font-semibold">Información del evento</h3>
+                  <label className="block text-sm font-medium">Nombre del evento<input required className={`${input} mt-2`} placeholder="Ej. Una noche de buenas conexiones" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
+                  <label className="block text-sm font-medium">Descripción<textarea required rows={3} className={`${input} mt-2 min-h-24 resize-y`} placeholder="Cuéntales a tus asistentes qué les espera…" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+                </section>
+                <section aria-labelledby="event-logistics-heading" className="space-y-4 border-t border-foreground/10 pt-6">
+                  <h3 id="event-logistics-heading" className="text-sm font-semibold">Cuándo y dónde</h3>
+                  <label className="block text-sm font-medium">Lugar<input required className={`${input} mt-2`} placeholder="Nombre del espacio o dirección" value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} /></label>
+                  <label className="block text-sm font-medium">Fecha y hora<input required type="datetime-local" className={`${input} mt-2`} value={form.starts_at} onChange={e => setForm({ ...form, starts_at: e.target.value })} /></label>
+                </section>
+                <section aria-labelledby="event-settings-heading" className="space-y-4 border-t border-foreground/10 pt-6">
+                  <h3 id="event-settings-heading" className="text-sm font-semibold">Aforo y publicación</h3>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block text-sm font-medium">Límite de asistentes<input required type="number" min="1" max="2147483647" aria-describedby="capacity-help" className={`${input} mt-2`} placeholder="Ej. 100" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></label>
+                    <label className="block text-sm font-medium">Estado<select className={`${input} mt-2`} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Event["status"] })}><option value="draft">Borrador</option><option value="published">Publicado</option></select></label>
+                  </div>
+                  <p id="capacity-help" className="text-xs leading-relaxed text-foreground/60">El aforo total debe cubrir las plazas asignadas a tus tipos de entrada.</p>
+                  <p className="rounded-xl bg-[#e9eedf] p-3 text-xs leading-relaxed text-foreground/75">{form.status === "draft" ? "Guárdalo como borrador mientras preparas los detalles de tu encuentro." : "El evento se guardará como publicado."}</p>
+                </section>
+              </fieldset>
+              {eventError && <p role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{eventError}</p>}
+            </form>
+            <SheetFooter>
+              <SheetClose asChild><button type="button" disabled={busy} className={secondary}>Cancelar</button></SheetClose>
+              <button type="submit" form="event-form" disabled={busy} className={button}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear evento"}</button>
+            </SheetFooter>
+          </SheetContent>
+        <section className="mt-10"><div className="flex items-center gap-3"><h2 className="text-2xl font-semibold tracking-tight">Tus eventos</h2><span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-semibold">{events.length}</span></div>{events.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-foreground/20 px-6 py-12 text-center"><p className="font-semibold">Tu próximo evento empieza aquí</p><p className="mt-2 text-sm text-foreground/60">Usa «Crear evento» para añadir los detalles de tu primer encuentro.</p></div>}<div className="mt-4 space-y-5">{events.map(event => { const allocated = event.ticket_types.reduce((sum, ticket) => sum + ticket.capacity, 0); return <article key={event.id} className="rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm"><div className="flex flex-wrap justify-between gap-4"><div><p className="inline-flex rounded-full bg-[#e9eedf] px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase text-[#527436]">{event.status === "published" ? "Publicado" : "Borrador"}</p><h3 className="mt-1 text-xl font-semibold">{event.title}</h3><p className="mt-1 text-sm">{new Date(event.starts_at).toLocaleString("es-EC")} · {event.venue}</p><p className="mt-2 text-sm">{event.description}</p><p className="mt-2 text-sm font-medium">Aforo asignado: {allocated} / {event.capacity}</p></div><div className="flex gap-2 self-start"><button disabled={busy} className={secondary} onClick={e => { eventTrigger.current = e.currentTarget; setEditing(event.id); setForm({ ...event, starts_at: localDate(event.starts_at), capacity: String(event.capacity) }); setEventError(""); setSheetOpen(true); }}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("events", event.id)}>Eliminar</button></div></div>
+          <div className="mt-6 border-t border-[#18372c]/15 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h4 className="font-semibold">Tipos de entrada</h4><button disabled={busy} className={secondary} onClick={e => openTicket(event, e.currentTarget)}>Agregar tipo</button></div>{event.ticket_types.length === 0 ? <p className="mt-3 text-sm">Sin tipos de entrada.</p> : <ul className="mt-3 space-y-2">{event.ticket_types.map(ticket => <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm"><span>{ticket.name} · {ticket.capacity} plazas</span><span className="flex gap-2"><button disabled={busy} className={secondary} onClick={e => openTicket(event, e.currentTarget, ticket)}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("ticket_types", ticket.id)}>Eliminar</button></span></li>)}</ul>}
+          </div></article>; })}</div></section>
+        </Sheet>
+        <Sheet open={ticketSheetOpen} onOpenChange={open => { if (busy) return; setTicketSheetOpen(open); if (!open) setTicketError(""); }}>
+          <SheetContent
+            className="sm:max-w-md"
+            showCloseButton={!busy}
+            onEscapeKeyDown={e => { if (busy) e.preventDefault(); }}
+            onPointerDownOutside={e => { if (busy) e.preventDefault(); }}
+            onCloseAutoFocus={e => { e.preventDefault(); ticketTrigger.current?.focus(); }}
+          >
+            <SheetHeader>
+              <p className="text-[11px] font-semibold tracking-[.18em] text-[#527436] uppercase">Entradas de tu evento</p>
+              <SheetTitle>{ticketId ? "Editar tipo de entrada" : "Agregar tipo de entrada"}</SheetTitle>
+              <SheetDescription>{ticketId ? "Actualiza el nombre y las plazas asignadas a este tipo de entrada." : "Define un nombre y cuántas plazas tendrá este tipo de entrada."}</SheetDescription>
+            </SheetHeader>
+            <form id="ticket-form" onSubmit={saveTicket} aria-busy={busy} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 sm:p-8">
+              <section aria-labelledby="ticket-event-heading" className="rounded-2xl border border-foreground/10 bg-background p-4">
+                <h3 id="ticket-event-heading" className="text-xs font-medium text-foreground/60">Evento</h3>
+                <p className="mt-1 font-semibold wrap-break-word">{selectedTicketEvent?.title}</p>
+                <dl className="mt-4 flex items-center justify-between gap-3 border-t border-foreground/10 pt-3 text-sm">
+                  <dt className="text-foreground/65">Plazas disponibles para este tipo</dt>
+                  <dd className="shrink-0 rounded-full bg-[#e9eedf] px-3 py-1 font-semibold tabular-nums">{Math.max(0, ticketAvailable)}</dd>
+                </dl>
+              </section>
+              <fieldset disabled={busy || ticketAvailable < 1} className="min-w-0 space-y-5">
+                <legend className="sr-only">Detalles del tipo de entrada</legend>
+                <label className="block text-sm font-medium">Nombre del tipo<input required className={`${input} mt-2`} placeholder="Ej. General, VIP o Estudiantes" value={ticketName} onChange={e => setTicketName(e.target.value)} /></label>
+                <label className="block text-sm font-medium">Aforo<input required type="number" min="1" max={Math.max(1, ticketAvailable)} step="1" aria-describedby="ticket-capacity-help" className={`${input} mt-2`} placeholder="Ej. 50" value={ticketCapacity} onChange={e => setTicketCapacity(e.target.value)} /></label>
+                <p id="ticket-capacity-help" className="text-xs leading-relaxed text-foreground/60">{ticketId ? `Puedes asignar hasta ${Math.max(0, ticketAvailable)} plazas, incluyendo las que ya tiene este tipo.` : `Puedes asignar hasta ${Math.max(0, ticketAvailable)} plazas sin superar el límite del evento.`}</p>
+              </fieldset>
+              {ticketAvailable < 1 && <p role="status" className="rounded-xl bg-[#e9eedf] p-4 text-sm leading-relaxed">No quedan plazas disponibles. Aumenta el límite del evento o reduce el aforo de otro tipo de entrada.</p>}
+              {ticketError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{ticketError}</p>}
+            </form>
+            <SheetFooter>
+              <SheetClose asChild><button type="button" disabled={busy} className={secondary}>Cancelar</button></SheetClose>
+              <button type="submit" form="ticket-form" disabled={busy || !selectedTicketEvent || ticketAvailable < 1} className={button}>{busy ? "Guardando…" : ticketId ? "Guardar cambios" : "Guardar tipo"}</button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
       </>}
     </main></div>;
 }

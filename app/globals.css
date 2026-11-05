@@ -21,3 +21,36 @@ body {
   background: #d8e8a4;
   color: #18372c;
 }
+
+.sheet-overlay[data-state="open"] {
+  animation: sheet-fade-in 200ms ease-out;
+}
+
+.sheet-overlay[data-state="closed"] {
+  animation: sheet-fade-in 150ms ease-in reverse;
+}
+
+.sheet-content[data-state="open"] {
+  animation: sheet-slide-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sheet-content[data-state="closed"] {
+  animation: sheet-slide-in 200ms ease-in reverse;
+}
+
+@keyframes sheet-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheet-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-overlay,
+  .sheet-content {
+    animation: none !important;
+  }
+}
