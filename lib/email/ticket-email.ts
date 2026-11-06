@@ -4,6 +4,19 @@ import type { PublicTicket } from "../tickets";
 
 const qrContentId = "door-list-ticket-qr";
 
+export function getTicketEmailConfig(env: {
+  NODE_ENV?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
+  RESEND_TEST_TO_EMAIL?: string;
+}) {
+  return {
+    apiKey: env.RESEND_API_KEY ?? "",
+    from: env.RESEND_FROM_EMAIL ?? "",
+    to: env.NODE_ENV === "development" ? env.RESEND_TEST_TO_EMAIL?.trim() || undefined : undefined,
+  };
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
 }
@@ -49,9 +62,10 @@ ${details.map(([label, value]) => `<tr><td style="padding:0 0 20px;overflow-wrap
 }
 
 /** Resend acceptance is not a guarantee of inbox delivery. Never log payloads or credentials. */
-export async function sendTicketEmail(ticket: PublicTicket, config: { apiKey: string; from: string }, request: typeof fetch = fetch) {
+export async function sendTicketEmail(ticket: PublicTicket, config: { apiKey: string; from: string; to?: string }, request: typeof fetch = fetch) {
   if (!config.apiKey.trim() || !config.from.trim()) throw new Error("Email configuration missing");
   const payload = await buildTicketEmail(ticket, config.from);
+  payload.to = [config.to ?? ticket.email];
   // Same ticket and content share a key, including after an ambiguous network failure.
   const key = `ticket-email/${createHash("sha256").update(ticket.code).update(JSON.stringify(payload)).digest("hex")}`;
   for (let attempt = 0; attempt < 2; attempt++) {

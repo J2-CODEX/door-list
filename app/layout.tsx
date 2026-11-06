@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
-
+//console.log({environment:process.env.NODE_ENV})
 export const metadata: Metadata = {
   title: "Door List | Encuentros que conectan",
   description:

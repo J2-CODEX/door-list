@@ -1,10 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import QRCode from "qrcode";
-import { buildTicketEmail, sendTicketEmail } from "../lib/email/ticket-email.ts";
+import { buildTicketEmail, getTicketEmailConfig, sendTicketEmail } from "../lib/email/ticket-email.ts";
 
 const ticket = { code: "a".repeat(64), status: "valid", name: 'Ana <img src=x onerror="alert(1)">', email: "ana@example.com", event: { title: "Encuentro & comunidad", starts_at: "2026-11-22T02:00:00Z", venue: "Casa <Norte>" }, ticketType: "General" };
 const config = { apiKey: "test-key", from: "Door List <entradas@example.com>" };
+
+test("redirects only local development emails while preserving ticket content and recipient-aware idempotency", async () => {
+  const original = structuredClone(ticket);
+  const expected = await buildTicketEmail(ticket, config.from);
+  const calls = [];
+  const cases = [
+    { mode: "development", override: " juan@collantes.ec ", recipient: "juan@collantes.ec" },
+    { mode: "development", override: undefined, recipient: ticket.email },
+    { mode: "development", override: "   ", recipient: ticket.email },
+    { mode: "production", override: "juan@collantes.ec", recipient: ticket.email },
+    { mode: "test", override: "juan@collantes.ec", recipient: ticket.email },
+    { mode: undefined, override: "juan@collantes.ec", recipient: ticket.email },
+  ];
+  for (const { mode, override, recipient } of cases) {
+    const resolved = getTicketEmailConfig({
+      NODE_ENV: mode,
+      RESEND_API_KEY: config.apiKey,
+      RESEND_FROM_EMAIL: config.from,
+      RESEND_TEST_TO_EMAIL: override,
+    });
+    await sendTicketEmail(ticket, resolved, async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body), { ...expected, to: [recipient] });
+      calls.push(options);
+      return Response.json({ id: "email-test" });
+    });
+  }
+  assert.deepEqual(ticket, original);
+  assert.notEqual(calls[0].headers["Idempotency-Key"], calls[1].headers["Idempotency-Key"]);
+  assert.equal(calls[1].headers["Idempotency-Key"], calls[3].headers["Idempotency-Key"]);
+});
 
 test("HTML escapes event/attendee data and embeds the correct QR in the email", async () => {
   const payload = await buildTicketEmail(ticket, config.from);
