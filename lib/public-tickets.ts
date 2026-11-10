@@ -1,5 +1,5 @@
 import "server-only";
-import { publicClient } from "./public-events";
+import { publicClient } from "./supabase/server";
 import { ticketCodeSchema, publicTicketSchema, type PublicTicket } from "./tickets";
 
 export async function getPublicTicket(code: string): Promise<PublicTicket | null> {

@@ -1,24 +1,18 @@
 "use client";
+import { ecuadorDate, formatLocalDate, toLocalDateTime } from "@/lib/dates";
 
-import { createClient, type Session } from "@supabase/supabase-js";
+
+import { type Session } from "@supabase/supabase-js";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-type Ticket = { id: string; event_id: string; name: string; capacity: number };
-type Event = { id: string; title: string; description: string; starts_at: string; venue: string; status: "draft" | "published"; capacity: number; ticket_types: Ticket[] };
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const supabase = url && key ? createClient(url, key) : null;
+import type { Event, TicketType } from "@/lib/events";
+import { browserClient as supabase } from "@/lib/supabase/browser";
 const input = "w-full min-w-0 rounded-xl border border-foreground/15 bg-white px-3.5 py-2.5 text-base shadow-sm transition-colors placeholder:text-foreground/35 hover:border-foreground/30 focus-visible:border-[#719148] focus-visible:outline-2 focus-visible:outline-[#719148]/25 disabled:opacity-60 sm:text-sm";
 const button = "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#315444] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#719148] disabled:pointer-events-none disabled:opacity-50";
 const secondary = "inline-flex cursor-pointer items-center justify-center rounded-xl border border-foreground/15 bg-white px-4 py-2.5 text-sm font-medium transition-colors hover:bg-foreground/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#719148] disabled:pointer-events-none disabled:opacity-50";
 const emptyEvent = { title: "", description: "", starts_at: "", venue: "", status: "draft" as "draft" | "published", capacity: "" };
-
-function localDate(value: string) {
-  const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
 
 export default function Organizer() {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,18 +27,18 @@ export default function Organizer() {
   const eventTrigger = useRef<HTMLButtonElement | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(emptyEvent);
-  const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
-  const [ticketError, setTicketError] = useState("");
-  const ticketTrigger = useRef<HTMLButtonElement | null>(null);
-  const [ticketEvent, setTicketEvent] = useState<string | null>(null);
-  const [ticketId, setTicketId] = useState<string | null>(null);
-  const [ticketName, setTicketName] = useState("");
-  const [ticketCapacity, setTicketCapacity] = useState("");
+  const [ticketTypeSheetOpen, setTicketTypeSheetOpen] = useState(false);
+  const [ticketTypeError, setTicketTypeError] = useState("");
+  const ticketTypeTrigger = useRef<HTMLButtonElement | null>(null);
+  const [ticketTypeEvent, setTicketTypeEvent] = useState<string | null>(null);
+  const [ticketTypeId, setTicketTypeId] = useState<string | null>(null);
+  const [ticketTypeName, setTicketTypeName] = useState("");
+  const [ticketTypeCapacity, setTicketTypeCapacity] = useState("");
 
   useEffect(() => {
     if (!supabase) return;
     const client = supabase;
-    client.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
+    client.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); }).catch(() => { setMessage("No pudimos cargar tu sesión. Inténtalo de nuevo."); setLoading(false); });
     const { data } = client.auth.onAuthStateChange((_event, current) => { setSession(current); if (!current) setEvents([]); });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -52,72 +46,74 @@ export default function Organizer() {
   useEffect(() => {
     if (!session || !supabase) return;
     let active = true;
-    supabase.from("events").select("id,title,description,starts_at,venue,status,capacity,ticket_types(id,event_id,name,capacity)").eq("owner_id", session.user.id).order("starts_at").then(({ data, error }) => {
+    Promise.resolve(supabase.from("events").select("id,title,description,starts_at,venue,status,capacity,ticket_types(id,event_id,name,capacity)").eq("owner_id", session.user.id).order("starts_at")).then(({ data, error }) => {
       if (!active) return;
-      if (error) setMessage(error.message); else setEvents((data ?? []) as Event[]);
-    });
+      if (error) setMessage("No pudimos cargar los eventos. Inténtalo de nuevo."); else setEvents((data ?? []) as Event[]);
+    }).catch(() => { if (active) setMessage("No pudimos cargar los eventos. Inténtalo de nuevo."); });
     return () => { active = false; };
   }, [session]);
 
   async function refresh() {
     if (!supabase || !session) return;
     const { data, error } = await supabase.from("events").select("id,title,description,starts_at,venue,status,capacity,ticket_types(id,event_id,name,capacity)").eq("owner_id", session.user.id).order("starts_at");
-    if (error) setMessage(error.message); else setEvents((data ?? []) as Event[]);
+    if (error) setMessage("No pudimos cargar los eventos. Inténtalo de nuevo."); else setEvents((data ?? []) as Event[]);
   }
   async function login(e: FormEvent) {
     e.preventDefault(); if (!supabase) return;
     setBusy(true); setMessage("");
+    try {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setMessage("No se pudo iniciar sesión. Comprueba tu correo y contraseña.");
-    setBusy(false);
+    } catch { setMessage("No se pudo iniciar sesión. Inténtalo de nuevo."); } finally { setBusy(false); }
   }
   async function saveEvent(e: FormEvent) {
     e.preventDefault(); if (!supabase || !session) return;
     const capacity = Number(form.capacity);
     if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647 || !form.title.trim() || !form.description.trim() || !form.venue.trim() || !form.starts_at || Number.isNaN(new Date(form.starts_at).getTime())) { setEventError("Completa todos los campos y usa un límite válido."); return; }
-    const allocated = events.find(event => event.id === editing)?.ticket_types.reduce((sum, ticket) => sum + ticket.capacity, 0) ?? 0;
+    const allocated = events.find(event => event.id === editing)?.ticket_types.reduce((sum, ticketType) => sum + ticketType.capacity, 0) ?? 0;
     if (capacity < allocated) { setEventError(`El límite debe ser al menos ${allocated}, el aforo ya asignado.`); return; }
     setBusy(true); setEventError(""); setMessage("");
+    try {
     const values = { title: form.title.trim(), description: form.description.trim(), venue: form.venue.trim(), starts_at: new Date(form.starts_at).toISOString(), status: form.status, capacity };
     const { error } = editing ? await supabase.from("events").update(values).eq("id", editing).eq("owner_id", session.user.id) : await supabase.from("events").insert({ ...values, owner_id: session.user.id });
-    if (error) setEventError(error.message); else { await refresh(); setSheetOpen(false); setMessage("Evento guardado."); }
-    setBusy(false);
+    if (error) setEventError(error.code === "23514" ? "El aforo no es válido o es menor que las plazas asignadas. Revisa los datos." : "No pudimos guardar el evento. Inténtalo de nuevo."); else { await refresh(); setSheetOpen(false); setMessage("Evento guardado."); }
+    } catch { setEventError("No pudimos guardar el evento. Inténtalo de nuevo."); } finally { setBusy(false); }
   }
-  const selectedTicketEvent = events.find(event => event.id === ticketEvent);
-  const ticketAvailable = selectedTicketEvent
-    ? selectedTicketEvent.capacity - selectedTicketEvent.ticket_types
-      .filter(ticket => ticket.id !== ticketId)
-      .reduce((sum, ticket) => sum + ticket.capacity, 0)
+  const selectedTicketTypeEvent = events.find(event => event.id === ticketTypeEvent);
+  const ticketTypeAvailable = selectedTicketTypeEvent
+    ? selectedTicketTypeEvent.capacity - selectedTicketTypeEvent.ticket_types
+      .filter(ticketType => ticketType.id !== ticketTypeId)
+      .reduce((sum, ticketType) => sum + ticketType.capacity, 0)
     : 0;
 
-  function openTicket(event: Event, trigger: HTMLButtonElement, ticket?: Ticket) {
-    ticketTrigger.current = trigger;
-    setTicketEvent(event.id);
-    setTicketId(ticket?.id ?? null);
-    setTicketName(ticket?.name ?? "");
-    setTicketCapacity(ticket ? String(ticket.capacity) : "");
-    setTicketError("");
-    setTicketSheetOpen(true);
+  function openTicketType(event: Event, trigger: HTMLButtonElement, ticketType?: TicketType) {
+    ticketTypeTrigger.current = trigger;
+    setTicketTypeEvent(event.id);
+    setTicketTypeId(ticketType?.id ?? null);
+    setTicketTypeName(ticketType?.name ?? "");
+    setTicketTypeCapacity(ticketType ? String(ticketType.capacity) : "");
+    setTicketTypeError("");
+    setTicketTypeSheetOpen(true);
   }
 
-  async function saveTicket(e: FormEvent) {
-    e.preventDefault(); if (!supabase || !ticketEvent || busy) return;
-    const event = events.find(item => item.id === ticketEvent);
-    if (!event) { setTicketError("El evento ya no está disponible."); return; }
-    const capacity = Number(ticketCapacity);
-    const allocated = event.ticket_types.filter(ticket => ticket.id !== ticketId).reduce((sum, ticket) => sum + ticket.capacity, 0);
-    if (!ticketName.trim() || !Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647) { setTicketError("Indica un nombre y un aforo válido."); return; }
-    if (allocated + capacity > event.capacity) { setTicketError(`El aforo disponible para este tipo es ${event.capacity - allocated}.`); return; }
-    setBusy(true); setTicketError(""); setMessage("");
+  async function saveTicketType(e: FormEvent) {
+    e.preventDefault(); if (!supabase || !ticketTypeEvent || busy) return;
+    const event = events.find(item => item.id === ticketTypeEvent);
+    if (!event) { setTicketTypeError("El evento ya no está disponible."); return; }
+    const capacity = Number(ticketTypeCapacity);
+    const allocated = event.ticket_types.filter(ticketType => ticketType.id !== ticketTypeId).reduce((sum, ticketType) => sum + ticketType.capacity, 0);
+    if (!ticketTypeName.trim() || !Number.isSafeInteger(capacity) || capacity < 1 || capacity > 2147483647) { setTicketTypeError("Indica un nombre y un aforo válido."); return; }
+    if (allocated + capacity > event.capacity) { setTicketTypeError(`El aforo disponible para este tipo es ${event.capacity - allocated}.`); return; }
+    setBusy(true); setTicketTypeError(""); setMessage("");
     try {
-      const values = { name: ticketName.trim(), capacity, event_id: ticketEvent };
-      const { error } = ticketId ? await supabase.from("ticket_types").update(values).eq("id", ticketId).eq("event_id", ticketEvent) : await supabase.from("ticket_types").insert(values);
-      if (error) { setTicketError(error.message); return; }
+      const values = { name: ticketTypeName.trim(), capacity, event_id: ticketTypeEvent };
+      const { error } = ticketTypeId ? await supabase.from("ticket_types").update(values).eq("id", ticketTypeId).eq("event_id", ticketTypeEvent) : await supabase.from("ticket_types").insert(values);
+      if (error) { setTicketTypeError(error.code === "23514" ? "El aforo supera el disponible para este evento. Revisa los datos." : "No pudimos guardar el tipo de entrada. Inténtalo de nuevo."); return; }
       await refresh();
-      setTicketSheetOpen(false);
+      setTicketTypeSheetOpen(false);
       setMessage("Tipo de entrada guardado.");
     } catch {
-      setTicketError("No se pudo guardar el tipo de entrada. Inténtalo de nuevo.");
+      setTicketTypeError("No se pudo guardar el tipo de entrada. Inténtalo de nuevo.");
     } finally {
       setBusy(false);
     }
@@ -125,13 +121,14 @@ export default function Organizer() {
   async function remove(table: "events" | "ticket_types", id: string) {
     if (!supabase || !window.confirm(table === "events" ? "¿Eliminar este evento y todos sus tipos de entrada?" : "¿Eliminar este tipo de entrada?")) return;
     setBusy(true); setMessage("");
+    try {
     const { error } = await supabase.from(table).delete().eq("id", id);
-    if (error) setMessage(error.code == "23503" ? "No se puede eliminar: este evento o tipo de entrada tiene registros de asistentes." : error.message); else { if (table === "events" && editing === id) { setEditing(null); setForm(emptyEvent); } setTicketEvent(null); await refresh(); setMessage("Eliminado correctamente."); }
-    setBusy(false);
+    if (error) setMessage(error.code == "23503" ? "No se puede eliminar: este evento o tipo de entrada tiene registros de asistentes." : "No pudimos eliminarlo. Inténtalo de nuevo."); else { if (table === "events" && editing === id) { setEditing(null); setForm(emptyEvent); } setTicketTypeEvent(null); await refresh(); setMessage("Eliminado correctamente."); }
+    } catch { setMessage("No pudimos eliminarlo. Inténtalo de nuevo."); } finally { setBusy(false); }
   }
 
   return <div className="mx-auto min-h-svh max-w-5xl px-6 py-8 sm:px-10">
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#18372c]/15 pb-6"><Link href="/" className="text-xl font-bold">door list<span className="text-[#719148]">.</span></Link>{session && <button className={secondary} onClick={() => { void supabase?.auth.signOut(); }}>Cerrar sesión</button>}</header>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#18372c]/15 pb-6"><Link href="/" className="text-xl font-bold">door list<span className="text-[#719148]">.</span></Link>{session && <button className={secondary} onClick={() => { void supabase?.auth.signOut().then(({ error }) => { if (error) setMessage("No pudimos cerrar la sesión. Inténtalo de nuevo."); }).catch(() => setMessage("No pudimos cerrar la sesión. Inténtalo de nuevo.")); }}>Cerrar sesión</button>}</header>
     <main className="py-10"><p className="text-xs font-semibold tracking-[.2em] uppercase text-[#527436]">Espacio del organizador</p><h1 className="mt-3 text-4xl font-semibold tracking-tight">Gestiona tus eventos</h1>
       {message && <p role="status" className="mt-6 rounded-lg bg-[#e5edda] p-4 text-sm">{message}</p>}
       {!supabase ? <p className="mt-8">Configura las variables de Supabase para acceder al organizador.</p> : loading ? <p className="mt-8">Cargando sesión…</p> : !session ? <form onSubmit={login} className="mt-8 max-w-md space-y-4 rounded-2xl bg-white p-6"><h2 className="text-xl font-semibold">Iniciar sesión</h2><label className="block text-sm">Correo<input className={`${input} mt-1`} type="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label className="block text-sm">Contraseña<input className={`${input} mt-1`} type="password" required value={password} onChange={e => setPassword(e.target.value)} /></label><button disabled={busy} className={button}>Entrar</button></form> : <>
@@ -178,44 +175,44 @@ export default function Organizer() {
               <button type="submit" form="event-form" disabled={busy} className={button}>{busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear evento"}</button>
             </SheetFooter>
           </SheetContent>
-        <section className="mt-10"><div className="flex items-center gap-3"><h2 className="text-2xl font-semibold tracking-tight">Tus eventos</h2><span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-semibold">{events.length}</span></div>{events.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-foreground/20 px-6 py-12 text-center"><p className="font-semibold">Tu próximo evento empieza aquí</p><p className="mt-2 text-sm text-foreground/60">Usa «Crear evento» para añadir los detalles de tu primer encuentro.</p></div>}<div className="mt-4 space-y-5">{events.map(event => { const allocated = event.ticket_types.reduce((sum, ticket) => sum + ticket.capacity, 0); return <article key={event.id} className="rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm"><div className="flex flex-wrap justify-between gap-4"><div><p className="inline-flex rounded-full bg-[#e9eedf] px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase text-[#527436]">{event.status === "published" ? "Publicado" : "Borrador"}</p><h3 className="mt-1 text-xl font-semibold">{event.title}</h3><p className="mt-1 text-sm">{new Date(event.starts_at).toLocaleString("es-EC")} · {event.venue}</p><p className="mt-2 text-sm">{event.description}</p><p className="mt-2 text-sm font-medium">Aforo asignado: {allocated} / {event.capacity}</p></div><div className="flex flex-wrap gap-2 self-start">{event.status === "published" && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil" }).format(new Date(event.starts_at)) >= new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil" }).format(new Date()) && <Link className={secondary} href={`/eventos/${event.id}/registro`} target="_blank" rel="noopener noreferrer">Ver página de registro ↗</Link>}<button disabled={busy} className={secondary} onClick={e => { eventTrigger.current = e.currentTarget; setEditing(event.id); setForm({ ...event, starts_at: localDate(event.starts_at), capacity: String(event.capacity) }); setEventError(""); setSheetOpen(true); }}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("events", event.id)}>Eliminar</button></div></div>
-          <div className="mt-6 border-t border-[#18372c]/15 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h4 className="font-semibold">Tipos de entrada</h4><button disabled={busy} className={secondary} onClick={e => openTicket(event, e.currentTarget)}>Agregar tipo</button></div>{event.ticket_types.length === 0 ? <p className="mt-3 text-sm">Sin tipos de entrada.</p> : <ul className="mt-3 space-y-2">{event.ticket_types.map(ticket => <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm"><span>{ticket.name} · {ticket.capacity} plazas</span><span className="flex gap-2"><button disabled={busy} className={secondary} onClick={e => openTicket(event, e.currentTarget, ticket)}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("ticket_types", ticket.id)}>Eliminar</button></span></li>)}</ul>}
+        <section className="mt-10"><div className="flex items-center gap-3"><h2 className="text-2xl font-semibold tracking-tight">Tus eventos</h2><span className="rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-semibold">{events.length}</span></div>{events.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-foreground/20 px-6 py-12 text-center"><p className="font-semibold">Tu próximo evento empieza aquí</p><p className="mt-2 text-sm text-foreground/60">Usa «Crear evento» para añadir los detalles de tu primer encuentro.</p></div>}<div className="mt-4 space-y-5">{events.map(event => { const allocated = event.ticket_types.reduce((sum, ticketType) => sum + ticketType.capacity, 0); return <article key={event.id} className="rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm"><div className="flex flex-wrap justify-between gap-4"><div><p className="inline-flex rounded-full bg-[#e9eedf] px-2.5 py-1 text-[10px] font-semibold tracking-wide uppercase text-[#527436]">{event.status === "published" ? "Publicado" : "Borrador"}</p><h3 className="mt-1 text-xl font-semibold">{event.title}</h3><p className="mt-1 text-sm">{formatLocalDate(event.starts_at)} · {event.venue}</p><p className="mt-2 text-sm">{event.description}</p><p className="mt-2 text-sm font-medium">Aforo asignado: {allocated} / {event.capacity}</p></div><div className="flex flex-wrap gap-2 self-start">{event.status === "published" && ecuadorDate(event.starts_at) >= ecuadorDate() && <Link className={secondary} href={`/eventos/${event.id}/registro`} target="_blank" rel="noopener noreferrer">Ver página de registro ↗</Link>}<button disabled={busy} className={secondary} onClick={e => { eventTrigger.current = e.currentTarget; setEditing(event.id); setForm({ ...event, starts_at: toLocalDateTime(event.starts_at), capacity: String(event.capacity) }); setEventError(""); setSheetOpen(true); }}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("events", event.id)}>Eliminar</button></div></div>
+          <div className="mt-6 border-t border-[#18372c]/15 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h4 className="font-semibold">Tipos de entrada</h4><button disabled={busy} className={secondary} onClick={e => openTicketType(event, e.currentTarget)}>Agregar tipo</button></div>{event.ticket_types.length === 0 ? <p className="mt-3 text-sm">Sin tipos de entrada.</p> : <ul className="mt-3 space-y-2">{event.ticket_types.map(ticketType => <li key={ticketType.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm"><span>{ticketType.name} · {ticketType.capacity} plazas</span><span className="flex gap-2"><button disabled={busy} className={secondary} onClick={e => openTicketType(event, e.currentTarget, ticketType)}>Editar</button><button disabled={busy} className={secondary} onClick={() => void remove("ticket_types", ticketType.id)}>Eliminar</button></span></li>)}</ul>}
           </div></article>; })}</div></section>
         </Sheet>
-        <Sheet open={ticketSheetOpen} onOpenChange={open => { if (busy) return; setTicketSheetOpen(open); if (!open) setTicketError(""); }}>
+        <Sheet open={ticketTypeSheetOpen} onOpenChange={open => { if (busy) return; setTicketTypeSheetOpen(open); if (!open) setTicketTypeError(""); }}>
           <SheetContent
             className="sm:max-w-md"
             showCloseButton={!busy}
             onEscapeKeyDown={e => { if (busy) e.preventDefault(); }}
             onPointerDownOutside={e => { if (busy) e.preventDefault(); }}
-            onCloseAutoFocus={e => { e.preventDefault(); ticketTrigger.current?.focus(); }}
+            onCloseAutoFocus={e => { e.preventDefault(); ticketTypeTrigger.current?.focus(); }}
           >
             <SheetHeader>
               <p className="text-[11px] font-semibold tracking-[.18em] text-[#527436] uppercase">Entradas de tu evento</p>
-              <SheetTitle>{ticketId ? "Editar tipo de entrada" : "Agregar tipo de entrada"}</SheetTitle>
-              <SheetDescription>{ticketId ? "Actualiza el nombre y las plazas asignadas a este tipo de entrada." : "Define un nombre y cuántas plazas tendrá este tipo de entrada."}</SheetDescription>
+              <SheetTitle>{ticketTypeId ? "Editar tipo de entrada" : "Agregar tipo de entrada"}</SheetTitle>
+              <SheetDescription>{ticketTypeId ? "Actualiza el nombre y las plazas asignadas a este tipo de entrada." : "Define un nombre y cuántas plazas tendrá este tipo de entrada."}</SheetDescription>
             </SheetHeader>
-            <form id="ticket-form" onSubmit={saveTicket} aria-busy={busy} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 sm:p-8">
-              <section aria-labelledby="ticket-event-heading" className="rounded-2xl border border-foreground/10 bg-background p-4">
-                <h3 id="ticket-event-heading" className="text-xs font-medium text-foreground/60">Evento</h3>
-                <p className="mt-1 font-semibold wrap-break-word">{selectedTicketEvent?.title}</p>
+            <form id="ticketType-form" onSubmit={saveTicketType} aria-busy={busy} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 sm:p-8">
+              <section aria-labelledby="ticketType-event-heading" className="rounded-2xl border border-foreground/10 bg-background p-4">
+                <h3 id="ticketType-event-heading" className="text-xs font-medium text-foreground/60">Evento</h3>
+                <p className="mt-1 font-semibold wrap-break-word">{selectedTicketTypeEvent?.title}</p>
                 <dl className="mt-4 flex items-center justify-between gap-3 border-t border-foreground/10 pt-3 text-sm">
                   <dt className="text-foreground/65">Plazas disponibles para este tipo</dt>
-                  <dd className="shrink-0 rounded-full bg-[#e9eedf] px-3 py-1 font-semibold tabular-nums">{Math.max(0, ticketAvailable)}</dd>
+                  <dd className="shrink-0 rounded-full bg-[#e9eedf] px-3 py-1 font-semibold tabular-nums">{Math.max(0, ticketTypeAvailable)}</dd>
                 </dl>
               </section>
-              <fieldset disabled={busy || ticketAvailable < 1} className="min-w-0 space-y-5">
+              <fieldset disabled={busy || ticketTypeAvailable < 1} className="min-w-0 space-y-5">
                 <legend className="sr-only">Detalles del tipo de entrada</legend>
-                <label className="block text-sm font-medium">Nombre del tipo<input required className={`${input} mt-2`} placeholder="Ej. General, VIP o Estudiantes" value={ticketName} onChange={e => setTicketName(e.target.value)} /></label>
-                <label className="block text-sm font-medium">Aforo<input required type="number" min="1" max={Math.max(1, ticketAvailable)} step="1" aria-describedby="ticket-capacity-help" className={`${input} mt-2`} placeholder="Ej. 50" value={ticketCapacity} onChange={e => setTicketCapacity(e.target.value)} /></label>
-                <p id="ticket-capacity-help" className="text-xs leading-relaxed text-foreground/60">{ticketId ? `Puedes asignar hasta ${Math.max(0, ticketAvailable)} plazas, incluyendo las que ya tiene este tipo.` : `Puedes asignar hasta ${Math.max(0, ticketAvailable)} plazas sin superar el límite del evento.`}</p>
+                <label className="block text-sm font-medium">Nombre del tipo<input required className={`${input} mt-2`} placeholder="Ej. General, VIP o Estudiantes" value={ticketTypeName} onChange={e => setTicketTypeName(e.target.value)} /></label>
+                <label className="block text-sm font-medium">Aforo<input required type="number" min="1" max={Math.max(1, ticketTypeAvailable)} step="1" aria-describedby="ticketType-capacity-help" className={`${input} mt-2`} placeholder="Ej. 50" value={ticketTypeCapacity} onChange={e => setTicketTypeCapacity(e.target.value)} /></label>
+                <p id="ticketType-capacity-help" className="text-xs leading-relaxed text-foreground/60">{ticketTypeId ? `Puedes asignar hasta ${Math.max(0, ticketTypeAvailable)} plazas, incluyendo las que ya tiene este tipo.` : `Puedes asignar hasta ${Math.max(0, ticketTypeAvailable)} plazas sin superar el límite del evento.`}</p>
               </fieldset>
-              {ticketAvailable < 1 && <p role="status" className="rounded-xl bg-[#e9eedf] p-4 text-sm leading-relaxed">No quedan plazas disponibles. Aumenta el límite del evento o reduce el aforo de otro tipo de entrada.</p>}
-              {ticketError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{ticketError}</p>}
+              {ticketTypeAvailable < 1 && <p role="status" className="rounded-xl bg-[#e9eedf] p-4 text-sm leading-relaxed">No quedan plazas disponibles. Aumenta el límite del evento o reduce el aforo de otro tipo de entrada.</p>}
+              {ticketTypeError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{ticketTypeError}</p>}
             </form>
             <SheetFooter>
               <SheetClose asChild><button type="button" disabled={busy} className={secondary}>Cancelar</button></SheetClose>
-              <button type="submit" form="ticket-form" disabled={busy || !selectedTicketEvent || ticketAvailable < 1} className={button}>{busy ? "Guardando…" : ticketId ? "Guardar cambios" : "Guardar tipo"}</button>
+              <button type="submit" form="ticketType-form" disabled={busy || !selectedTicketTypeEvent || ticketTypeAvailable < 1} className={button}>{busy ? "Guardando…" : ticketTypeId ? "Guardar cambios" : "Guardar tipo"}</button>
             </SheetFooter>
           </SheetContent>
         </Sheet>

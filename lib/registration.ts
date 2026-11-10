@@ -1,3 +1,4 @@
+import type { PublicTicketType } from "./events";
 import { z } from "zod";
 export const registrationSchema = z.object({
   eventId: z.uuid("Evento inválido"),
@@ -6,5 +7,5 @@ export const registrationSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email("Ingresa un email válido").max(254)),
 });
 export type RegistrationInput = z.infer<typeof registrationSchema>;
-export type PublicEvent = { id: string; title: string; description: string; venue: string; starts_at: string; tickets: { id: string; name: string; available: number }[] };
+export type PublicEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ticketTypes: PublicTicketType[] };
 export type RegistrationResult = { code: "SUCCESS"; ticketCode: string; emailStatus: "sent" | "failed" } | { code: "INVALID_INPUT" | "EVENT_CLOSED" | "DUPLICATE" | "TICKET_UNAVAILABLE" | "ERROR" };
