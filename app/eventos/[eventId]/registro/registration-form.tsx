@@ -6,7 +6,29 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Button, Card, Field, FieldLabel, FieldError, Input } from "@/components/ui/registration-controls";
 import { registrationSchema, type RegistrationInput, type PublicEvent } from "@/lib/registration";
-import { register, refreshEvent } from "./actions";
+import { deserializePublicEvent, type PublicEventResponse, type RegistrationResponse } from "@/lib/api-contracts";
+import type { RegistrationResult } from "@/lib/registration";
+async function register(input: RegistrationInput): Promise<RegistrationResult> {
+  const response = await fetch("/api/registros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) {
+    const body = await response.json();
+    switch (body.error) {
+      case "INVALID_INPUT": case "EVENT_CLOSED": case "DUPLICATE": case "TICKET_UNAVAILABLE": return { code: body.error };
+      default: return { code: "ERROR" };
+    }
+  }
+  const data: RegistrationResponse = await response.json();
+  return { code: "SUCCESS", ...data };
+}
+async function refreshEvent(id: string): Promise<PublicEvent | null> {
+  const response = await fetch(`/api/eventos/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (!response.ok) {
+    if (response.status === 410) return null;
+    throw new Error("No se pudieron actualizar las opciones");
+  }
+  const data: PublicEventResponse = await response.json();
+  return deserializePublicEvent(data);
+}
 export default function RegistrationForm({ initialEvent }: { initialEvent: PublicEvent }) {
   const [event, setEvent] = useState<PublicEvent | null>(initialEvent);
   const [message, setMessage] = useState("");

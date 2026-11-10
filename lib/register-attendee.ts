@@ -1,10 +1,8 @@
-"use server";
+import "server-only";
 import { publicClient } from "@/lib/supabase/server";
 import { ticketCodeSchema } from "@/lib/tickets";
 import { registrationSchema, type RegistrationResult } from "@/lib/registration";
-import { getPublicEvent } from "@/lib/public-events";
 import { sendConfirmedTicketEmail } from "@/lib/email/send-confirmed-ticket";
-export async function refreshEvent(id: string) { return getPublicEvent(id); }
 export async function register(input: unknown): Promise<RegistrationResult> {
   const parsed = registrationSchema.safeParse(input);
   if (!parsed.success) return { code: "INVALID_INPUT" };
@@ -19,6 +17,6 @@ export async function register(input: unknown): Promise<RegistrationResult> {
       const emailStatus = await sendConfirmedTicketEmail(code.data);
       return { code: "SUCCESS", ticketCode: code.data, emailStatus };
     }
-    return data as RegistrationResult;
+    return ["INVALID_INPUT", "EVENT_CLOSED", "DUPLICATE", "TICKET_UNAVAILABLE"].includes(data.code) ? { code: data.code } as RegistrationResult : { code: "ERROR" };
   } catch { return { code: "ERROR" }; }
 }

@@ -36,7 +36,7 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
           </dl>
         </Card>
         <Card><h2 className="text-xl font-semibold">Presenta tu código QR</h2>
-          <div role="status" className={`mt-4 rounded-xl p-4 ${state.className}`}><p className="font-semibold">{state.label} <span className="text-xs font-normal">({ticket.status})</span></p><p className="mt-1 text-sm leading-relaxed">{state.description}</p></div>
+          <div role="status" className={`mt-4 rounded-xl p-4 ${state.className}`}><p className="font-semibold">{state.label}</p><p className="mt-1 text-sm leading-relaxed">{state.description}</p></div>
           <Image src={qr} unoptimized alt="Código QR de tu entrada" width={360} height={360} className="mx-auto mt-5 h-auto w-full max-w-[360px] rounded-xl" />
           <details className="mt-3 text-sm"><summary className="cursor-pointer font-medium">Ver código de la entrada</summary><code className="mt-3 block break-all rounded-lg bg-background p-3 text-xs">{ticket.code}</code></details>
           <TicketRefresh />
