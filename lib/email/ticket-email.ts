@@ -1,3 +1,4 @@
+import { formatEventDate } from "@/lib/dates";
 import QRCode from "qrcode";
 import { createHash } from "node:crypto";
 import type { PublicTicket } from "../tickets";
@@ -22,7 +23,7 @@ function escapeHtml(value: string) {
 }
 
 export async function buildTicketEmail(ticket: PublicTicket, from: string) {
-  const date = new Intl.DateTimeFormat("es-EC", { timeZone: "America/Guayaquil", dateStyle: "long", timeStyle: "short", hourCycle: "h23" }).format(new Date(ticket.event.starts_at));
+  const date = formatEventDate(ticket.event.starts_at, "h23");
   const qr = await QRCode.toBuffer(ticket.code, { type: "png", errorCorrectionLevel: "M", margin: 4, width: 360 });
   const details = [["Evento", ticket.event.title], ["Cuándo", date], ["Dónde", ticket.event.venue], ["Asistente", ticket.name], ["Tipo de entrada", ticket.ticketType]];
   const html = `<!doctype html>

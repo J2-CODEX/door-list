@@ -1,3 +1,4 @@
+import { formatEventDate } from "@/lib/dates";
 import Link from "next/link";
 import Image from "next/image";
 import QRCode from "qrcode";
@@ -30,7 +31,7 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
           <dl className="mt-7 space-y-5">
             <div><dt className="text-sm text-foreground/60">Asistente</dt><dd className="mt-1 font-semibold wrap-break-word">{ticket.name}</dd><dd className="mt-1 text-sm wrap-break-word">{ticket.email}</dd></div>
             <div><dt className="text-sm text-foreground/60">Tipo de entrada</dt><dd className="mt-1 font-medium wrap-break-word">{ticket.ticketType}</dd></div>
-            <div><dt className="text-sm text-foreground/60">Cuándo</dt><dd className="mt-1"><time dateTime={ticket.event.starts_at}>{new Intl.DateTimeFormat("es-EC", { timeZone: "America/Guayaquil", dateStyle: "long", timeStyle: "short" }).format(new Date(ticket.event.starts_at))}</time></dd><dd className="mt-1 text-xs text-foreground/60">Hora de Ecuador continental · UTC−5</dd></div>
+            <div><dt className="text-sm text-foreground/60">Cuándo</dt><dd className="mt-1"><time dateTime={ticket.event.starts_at}>{formatEventDate(ticket.event.starts_at)}</time></dd><dd className="mt-1 text-xs text-foreground/60">Hora de Ecuador continental · UTC−5</dd></div>
             <div><dt className="text-sm text-foreground/60">Dónde</dt><dd className="mt-1 wrap-break-word">{ticket.event.venue}</dd></div>
           </dl>
         </Card>

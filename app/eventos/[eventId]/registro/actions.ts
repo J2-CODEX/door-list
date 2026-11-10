@@ -1,7 +1,8 @@
 "use server";
+import { publicClient } from "@/lib/supabase/server";
 import { ticketCodeSchema } from "@/lib/tickets";
 import { registrationSchema, type RegistrationResult } from "@/lib/registration";
-import { getPublicEvent, publicClient } from "@/lib/public-events";
+import { getPublicEvent } from "@/lib/public-events";
 import { sendConfirmedTicketEmail } from "@/lib/email/send-confirmed-ticket";
 export async function refreshEvent(id: string) { return getPublicEvent(id); }
 export async function register(input: unknown): Promise<RegistrationResult> {

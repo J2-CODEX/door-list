@@ -1,20 +1,10 @@
+import { formatEventDate, formatEventDay, formatEventMonth, ecuadorDate } from "@/lib/dates";
 import Link from "next/link";
-import { publicClient } from "@/lib/public-events";
+import { publicClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type ListedEvent = {
-  id: string;
-  title: string;
-  description: string;
-  starts_at: string;
-  venue: string;
-};
-
-const timeZone = "America/Guayaquil";
-const fullDate = new Intl.DateTimeFormat("es-EC", { timeZone, dateStyle: "long", timeStyle: "short" });
-const day = new Intl.DateTimeFormat("es-EC", { timeZone, day: "2-digit" });
-const month = new Intl.DateTimeFormat("es-EC", { timeZone, month: "short" });
+import type { ListedEvent } from "@/lib/events";
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#719148]";
 
 export default async function Home() {
@@ -22,7 +12,7 @@ export default async function Home() {
   let failed = false;
 
   try {
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
+    const today = ecuadorDate();
     const { data, error } = await publicClient()
       .from("events")
       .select("id,title,description,starts_at,venue")
@@ -89,8 +79,8 @@ export default async function Home() {
                 <article key={event.id} className="flex min-w-0 flex-col rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm transition-shadow hover:shadow-md motion-reduce:transition-none sm:p-7">
                   <div className="flex items-start gap-4">
                     <div aria-hidden="true" className="flex w-16 shrink-0 flex-col items-center rounded-2xl bg-[#e9eedf] px-2 py-3 text-[#527436]">
-                      <span className="text-3xl leading-none font-semibold tabular-nums">{day.format(new Date(event.starts_at))}</span>
-                      <span className="mt-1 text-xs font-semibold uppercase">{month.format(new Date(event.starts_at))}</span>
+                      <span className="text-3xl leading-none font-semibold tabular-nums">{formatEventDay(event.starts_at)}</span>
+                      <span className="mt-1 text-xs font-semibold uppercase">{formatEventMonth(event.starts_at)}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold tracking-widest text-[#527436] uppercase">Nos vemos aquí</p>
@@ -98,7 +88,7 @@ export default async function Home() {
                     </div>
                   </div>
                   <dl className="mt-6 space-y-3 text-sm">
-                    <div><dt className="text-xs text-foreground/60">Fecha · Hora de Ecuador</dt><dd className="mt-1 font-medium"><time dateTime={event.starts_at}>{fullDate.format(new Date(event.starts_at))}</time></dd></div>
+                    <div><dt className="text-xs text-foreground/60">Fecha · Hora de Ecuador</dt><dd className="mt-1 font-medium"><time dateTime={event.starts_at}>{formatEventDate(event.starts_at)}</time></dd></div>
                     <div><dt className="text-xs text-foreground/60">Lugar</dt><dd className="mt-1 font-medium wrap-break-word">{event.venue}</dd></div>
                   </dl>
                   <p className="mt-5 mb-7 text-sm leading-relaxed whitespace-pre-wrap text-foreground/75 wrap-break-word">{event.description}</p>
