@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Button, Card, Field, FieldLabel, FieldError, Input } from "@/components/ui/registration-controls";
+import { FieldError } from "@/components/ui/registration-controls";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
+import { TicketOption } from "./ticket-option";
 import { registrationSchema, type RegistrationInput, type PublicEvent } from "@/lib/registration";
 import { deserializePublicEvent, type PublicEventResponse, type RegistrationResponse } from "@/lib/api-contracts";
 import type { RegistrationResult } from "@/lib/registration";
@@ -50,39 +56,30 @@ export default function RegistrationForm({ initialEvent }: { initialEvent: Publi
       }
     } catch { const text = "No pudimos confirmar tu registro. Comprueba tu conexión y vuelve a intentarlo."; setMessage(text); toast.error(text); }
   }
-  if (success) return <Card><p className="text-sm font-semibold text-[#527436]">¡Nos vemos pronto!</p><h2 tabIndex={-1} ref={el => el?.focus()} className="mt-3 text-2xl font-semibold outline-none">Tu lugar está confirmado</h2><p role="status" className="mt-4">Te esperamos en {initialEvent.title} con tu entrada {success.name}.</p><p role={success.emailStatus === "failed" ? "alert" : undefined} className={`mt-4 rounded-xl p-4 text-sm leading-relaxed ${success.emailStatus === "failed" ? "bg-amber-50 text-amber-900" : "bg-[#e9eedf] text-[#315444]"}`}>{success.emailStatus === "sent" ? "Te enviamos un correo con tu entrada y el QR. Revisa también tu carpeta de spam. Puedes abrirla y guardar su enlace desde aquí." : "Tu entrada está confirmada, pero no pudimos enviar el correo. Abre tu entrada y guarda el enlace o el QR para el día del evento. No necesitas registrarte otra vez."}</p><Link prefetch={false} href={`/entradas/${success.code}`} className="mt-6 inline-flex w-full justify-center rounded-xl bg-foreground px-5 py-3 font-semibold text-white hover:bg-[#315444] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#719148]">Ver mi entrada y QR ↗</Link></Card>;
-  if (!event) return <Card><h2 className="text-2xl font-semibold">Registro cerrado</h2><p role="status" className="mt-4">Este evento ya no está disponible para registro.</p></Card>;
+  if (success) return <section aria-labelledby="registration-title" className="min-w-0"><Card><CardHeader><p className="text-sm font-semibold text-accent-foreground">¡Nos vemos pronto!</p><h2 id="registration-title" tabIndex={-1} ref={el => el?.focus()} className="text-2xl font-semibold tracking-tight outline-none">Tu lugar está confirmado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6 wrap-anywhere">Te esperamos en {initialEvent.title} con tu entrada {success.name}.</p><Notice role={success.emailStatus === "failed" ? "alert" : undefined} className="mt-4">{success.emailStatus === "sent" ? "Te enviamos un correo con tu entrada y el QR. Revisa también tu carpeta de spam. Puedes abrirla y guardar su enlace desde aquí." : "Tu entrada está confirmada, pero no pudimos enviar el correo. Abre tu entrada y guarda el enlace o el QR para el día del evento. No necesitas registrarte otra vez."}</Notice><Link prefetch={false} href={`/entradas/${success.code}`} className={`${buttonStyles()} mt-6 w-full`}>Ver mi entrada y QR ↗</Link></CardContent></Card></section>;
+  if (!event) return <section aria-labelledby="registration-title"><Card><CardHeader><h2 id="registration-title" className="text-2xl font-semibold tracking-tight">Registro cerrado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6">Este evento ya no está disponible para registro.</p></CardContent></Card></section>;
   const available = event.ticketTypes.some(t => t.available > 0);
-  return <Card><h2 className="text-2xl font-semibold">Reserva tu lugar</h2><p className="mt-2 text-sm text-foreground/65">Unos pocos datos y estarás listo para conectar.</p>
-    {!available && <p role="status" className="mt-6 rounded-xl bg-[#e9eedf] p-4">{event.ticketTypes.length ? "Las entradas están agotadas." : "Aún no hay tipos de entrada disponibles."}</p>}
-    <form noValidate onSubmit={form.handleSubmit(submit)} aria-busy={busy} className="mt-7 space-y-5">
-      <fieldset disabled={busy || !available} className="space-y-5"><legend className="sr-only">Datos del asistente</legend>
+  return <section aria-labelledby="registration-title" className="min-w-0"><Card><CardHeader><h2 id="registration-title" className="text-2xl font-semibold tracking-tight">Reserva tu lugar</h2><CardDescription>Unos pocos datos y estarás listo para conectar.</CardDescription></CardHeader><CardContent>
+    {!available && <Notice role="status" className="mb-6">{event.ticketTypes.length ? "Las entradas están agotadas." : "Aún no hay tipos de entrada disponibles."}</Notice>}
+    <form noValidate onSubmit={form.handleSubmit(submit)} aria-busy={busy} className="space-y-6">
+      <fieldset disabled={busy || !available} className="min-w-0 space-y-4"><legend className="sr-only">Datos del asistente</legend>
       <Controller
         name="ticketTypeId"
         control={form.control}
         render={({ field, fieldState }) => (
           <fieldset
-            className="min-w-0 space-y-3"
+            className="min-w-0 space-y-4"
             aria-invalid={fieldState.invalid}
             aria-describedby="ticketTypeId-error"
           >
-            <legend className="mb-3 text-sm font-medium">Tipo de entrada *</legend>
+            <legend className="mb-4 text-sm font-medium">Tipo de entrada *</legend>
             {event.ticketTypes.map(ticket => {
               const soldOut = ticket.available < 1;
               const selected = field.value === ticket.id;
               const disabled = soldOut || busy;
               const descriptionId = `ticket-${ticket.id}-availability`;
               return (
-                <label
-                  key={ticket.id}
-                  className={`flex min-h-24 items-center gap-4 rounded-2xl border p-5 transition-colors focus-within:ring-2 focus-within:ring-[#719148] focus-within:ring-offset-2 ${
-                    selected
-                      ? "border-[#527436] bg-[#e9eedf]"
-                      : fieldState.invalid && !soldOut
-                        ? "border-red-300 bg-white"
-                        : "border-foreground/20 bg-white"
-                  } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[#719148] hover:bg-[#f6f8f1]"}`}
-                >
+                <TicketOption key={ticket.id} selected={selected} invalid={fieldState.invalid} disabled={disabled}>
                   <input
                     type="radio"
                     name={field.name}
@@ -94,24 +91,24 @@ export default function RegistrationForm({ initialEvent }: { initialEvent: Publi
                     disabled={disabled}
                     required
                     aria-describedby={`${descriptionId} ticketTypeId-error`}
-                    className="size-5 shrink-0 accent-[#527436]"
+                    className="size-5 shrink-0 accent-accent-foreground"
                   />
                   <span className="min-w-0">
-                    <span className="block font-semibold wrap-break-word">{ticket.name}</span>
+                    <span className="block font-semibold wrap-anywhere">{ticket.name}</span>
                     <span id={descriptionId} className="mt-1 block text-sm text-foreground/65">
                       {soldOut ? "Sin cupo" : `${ticket.available} ${ticket.available === 1 ? "cupo disponible" : "cupos disponibles"}`}
                     </span>
                   </span>
-                </label>
+                </TicketOption>
               );
             })}
             <FieldError id="ticketTypeId-error" message={fieldState.error?.message} />
           </fieldset>
         )}
       />
-      {(["name", "email"] as const).map(name => <Controller key={name} name={name} control={form.control} render={({ field, fieldState }) => <Field data-invalid={fieldState.invalid}><FieldLabel htmlFor={name}>{name === "name" ? "Tu nombre" : "Email"} *</FieldLabel><Input {...field} id={name} type={name === "email" ? "email" : "text"} autoComplete={name} maxLength={name === "name" ? 200 : 254} placeholder={name === "name" ? "¿Cómo te llamas?" : "tu@ejemplo.com"} required aria-invalid={fieldState.invalid} aria-describedby={`${name}-error`} /><FieldError id={`${name}-error`} message={fieldState.error?.message} /></Field>} />)}
+      {(["name", "email"] as const).map(name => <Controller key={name} name={name} control={form.control} render={({ field, fieldState }) => <Field data-invalid={fieldState.invalid}><FieldLabel htmlFor={name}>{name === "name" ? "Tu nombre" : "Correo electrónico"} *</FieldLabel><Input {...field} id={name} type={name === "email" ? "email" : "text"} autoComplete={name} maxLength={name === "name" ? 200 : 254} placeholder={name === "name" ? "¿Cómo te llamas?" : "tu@ejemplo.com"} required aria-invalid={fieldState.invalid} aria-describedby={`${name}-error`} /><FieldError id={`${name}-error`} message={fieldState.error?.message} /></Field>} />)}
       </fieldset>
-      {message && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</p>}
-      <Button type="submit" disabled={busy || !available} className="w-full">{busy ? "Confirmando registro…" : "Confirmar mi registro ↗"}</Button><p className="text-xs leading-relaxed text-foreground/60">Todos los campos son obligatorios. Un registro por email para este evento. El cupo se confirma al enviar.</p>
-    </form></Card>;
+      {message && <Notice role="alert" tone="error">{message}</Notice>}
+      <Button type="submit" disabled={busy || !available} className="w-full">{busy ? "Confirmando registro…" : "Confirmar mi registro ↗"}</Button><p className="text-xs leading-relaxed text-foreground/60">Todos los campos son obligatorios. Un registro por correo para este evento. El cupo se confirma al enviar.</p>
+    </form></CardContent></Card></section>;
 }

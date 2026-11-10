@@ -29,7 +29,7 @@ export default async function Home() {
     <div className="mx-auto flex min-h-svh max-w-6xl flex-col px-6 sm:px-10">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-foreground/15 py-7">
         <span className="text-xl font-bold tracking-tight">door list<span className="text-[#719148]">.</span></span>
-        <Link href="/organizador" className={`rounded-sm text-xs tracking-widest uppercase hover:underline ${focus}`}>Organizadores ↗</Link>
+        <Link href="/dashboard" className={`rounded-sm text-xs tracking-widest uppercase hover:underline ${focus}`}>Organizadores ↗</Link>
       </header>
 
       <main className="flex-1">

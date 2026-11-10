@@ -14,6 +14,18 @@ Cada usuario autenticado administra únicamente sus propios eventos gracias a la
 
 Cada evento tiene un límite de asistentes. La suma del aforo de sus tipos de entrada no puede superar ese límite; tampoco se puede reducir el límite por debajo de la suma asignada. La regla se comprueba en la interfaz y en la base de datos, incluso para operaciones concurrentes. Las fechas se introducen y muestran en la zona horaria del navegador.
 
+## Gráfica del dashboard
+
+El detalle de cada evento incluye una gráfica de registros diarios con los estilos compartidos de Door List, consulta independiente, actualización manual y tabla accesible. Usa `America/Guayaquil` e incluye en cero todos los días desde la publicación hasta hoy; los filtros y la paginación de asistentes no afectan a la gráfica.
+
+Requiere la migración `20261110130000_daily_registration_counts.sql`, que registra `published_at` al publicar nuevos eventos y agrega los registros en SQL, sin límites de filas ni datos personales en la respuesta. La consulta conserva RLS y comprueba que el usuario sea propietario. Su aplicación requiere confirmación explícita antes de acceder a la base de datos.
+
+`GET /api/organizador/eventos/[eventId]/registros-por-dia` exige un Bearer token válido y devuelve `{ eventId, publishedAt, startDate, endDate, days: [{ date, count }] }` con caché privada deshabilitada. Los errores usan `{ error: string }` con 401, 404 o 500. No modifica el endpoint de asistentes.
+
+La fecha de publicación de eventos antiguos no se puede reconstruir: se conserva como `null` y la gráfica indica que empieza en el primer registro disponible. Si tampoco hay registros, muestra un mensaje sin inventar una fecha. Un borrador nuevo muestra la indicación de publicarlo.
+
+Pruebas sin base de datos: `node --test tests/registration-series.test.mjs tests/dashboard.test.mjs tests/dashboard-query.test.mjs`. Queda por verificar la migración y los permisos de la RPC en una base de pruebas autorizada: publicación inicial, edición y republicación conservando la fecha, eventos antiguos, acceso anónimo/otro propietario, agrupación a medianoche de Ecuador y más de 1000 registros.
+
 ## Registro público
 
 Cada evento publicado vigente tiene un enlace desde el organizador a `/eventos/[eventId]/registro`. La fecha límite es el día del evento completo en `America/Guayaquil`. La portada conserva sus datos de ejemplo.

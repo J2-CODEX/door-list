@@ -3,11 +3,27 @@
 :root {
   --background: #f6f5f0;
   --foreground: #18372c;
+  --surface: #ffffff;
+  --primary-hover: #315444;
+  --accent: #719148;
+  --accent-surface: #e9eedf;
+  --accent-decoration: #d8e8a4;
+  --accent-foreground: #436329;
+  --chart-grid: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --chart-label: color-mix(in srgb, var(--foreground) 60%, transparent);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-primary-hover: var(--primary-hover);
+  --color-accent: var(--accent);
+  --color-accent-surface: var(--accent-surface);
+  --color-accent-decoration: var(--accent-decoration);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-label: var(--chart-label);
   --font-sans: Arial, Helvetica, sans-serif;
 }
 
@@ -18,8 +34,22 @@ body {
 }
 
 ::selection {
-  background: #d8e8a4;
-  color: #18372c;
+  background: var(--accent-decoration);
+  color: var(--foreground);
+}
+
+.registration-chart-tooltip {
+  @apply rounded-xl border border-foreground/10 bg-surface p-4 text-sm leading-5 text-foreground shadow-sm;
+}
+
+.registration-chart-summary {
+  @apply cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground;
+}
+
+.registration-chart .recharts-surface:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .sheet-overlay[data-state="open"] {
