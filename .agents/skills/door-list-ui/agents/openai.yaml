@@ -1,0 +1,5 @@
+interface:
+  display_name: "Door List UI"
+  short_description: "Aplica el sistema visual de Door List"
+policy:
+  allow_implicit_invocation: true

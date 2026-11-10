@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import { clearOrganizerSession, syncOrganizerSession } from "@/lib/supabase/browser-session";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/registration-controls";
 import { useRouter } from "next/navigation";
 
@@ -60,7 +61,7 @@ export function DashboardSession({ children }: { children: ReactNode }) {
     } catch { setError("No pudimos cerrar la sesión. Inténtalo de nuevo."); }
     finally { setBusy(false); }
   }
-  if (error && !identity.token) return <div role="alert" className="py-16 text-center"><p>{error}</p><button onClick={() => router.replace("/iniciar-sesion")} className="mt-5 cursor-pointer font-semibold underline">Iniciar sesión</button></div>;
+  if (error && !identity.token) return <div role="alert" className="py-16 text-center"><p>{error}</p><Button onClick={() => router.replace("/iniciar-sesion")} className="mt-6">Iniciar sesión</Button></div>;
   if (!identity.token) return <div role="status" className="space-y-6 py-12"><span className="sr-only">Validando tu sesión…</span><Skeleton className="h-14 w-2/3" /><div className="grid gap-4 sm:grid-cols-3">{[1, 2, 3].map(key => <Skeleton key={key} className="h-40" />)}</div><Skeleton className="h-64" /></div>;
-  return <SessionContext.Provider value={identity.token}><div className="flex flex-wrap items-center justify-end gap-3 pt-5"><span className="text-xs text-foreground/60">{identity.email}</span><button onClick={logout} disabled={busy} className="cursor-pointer rounded-lg px-3 py-2 text-xs text-foreground/60 hover:bg-foreground/5 focus-visible:outline-2">{busy ? "Cerrando sesión…" : "Cerrar sesión"}</button></div>{error && <p role="alert" className="text-sm text-red-800">{error}</p>}<div key={identity.token}>{children}</div></SessionContext.Provider>;
+  return <SessionContext.Provider value={identity.token}><div className="flex flex-wrap items-center justify-end gap-4 pb-8"><span className="min-w-0 text-xs text-foreground/60 wrap-anywhere">{identity.email}</span><Button onClick={logout} disabled={busy} variant="ghost">{busy ? "Cerrando sesión…" : "Cerrar sesión"}</Button></div>{error && <p role="alert" className="text-sm text-red-800">{error}</p>}<div key={identity.token}>{children}</div></SessionContext.Provider>;
 }

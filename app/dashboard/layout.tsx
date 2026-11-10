@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SiteHeader, SiteFooter } from "@/components/site-header";
 import { DashboardSession } from "@/components/dashboard-session";
 import { requireDashboardSession } from "@/lib/supabase/dashboard-session";
 
 export const metadata: Metadata = { title: "Mi panel | Door List", robots: { index: false, follow: false } };
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await requireDashboardSession();
-  return <div className="min-h-svh"><header className="border-b border-foreground/10 bg-white/70"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-10"><Link href="/" className="text-xl font-bold tracking-tight">door list<span className="text-[#719148]">.</span></Link><nav aria-label="Organizador" className="flex items-center gap-5 text-sm"><Link href="/dashboard" className="font-semibold underline decoration-[#a7bd7d] underline-offset-8">Mis eventos</Link><Link href="/organizador" className="text-foreground/60 hover:text-foreground">Gestionar eventos ↗</Link></nav></div></header><main className="mx-auto max-w-7xl px-6 pb-16 sm:px-10"><DashboardSession>{children}</DashboardSession></main><footer className="mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t border-foreground/10 px-6 py-6 text-xs text-foreground/50 sm:px-10"><span>Door List · Encuentros que conectan.</span><span>Espacio privado del organizador</span></footer></div>;
+  return <div className="flex min-h-svh flex-col"><SiteHeader><nav aria-label="Organizador" className="flex flex-wrap items-center gap-4 text-sm"><Link href="/dashboard" className="rounded-sm font-semibold underline decoration-accent underline-offset-8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground">Mis eventos</Link><Link href="/organizador" className="rounded-sm text-foreground/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground">Gestionar eventos ↗</Link></nav></SiteHeader><main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 sm:px-10"><DashboardSession>{children}</DashboardSession></main><SiteFooter><span>Espacio privado del organizador</span></SiteFooter></div>;
 }
