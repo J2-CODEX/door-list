@@ -1,0 +1,15 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-11-13T14:51:06.625Z",
+        "reason": "Agent: Door List UI fija Arial, Helvetica, sans-serif como familia global en references/visual-system.md; DESIGN.md conserva la misma regla. Excepción al detector para respetar la identidad existente."
+      }
+    ]
+  }
+}
