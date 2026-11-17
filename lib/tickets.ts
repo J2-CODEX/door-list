@@ -11,7 +11,7 @@ export const publicTicketSchema = z.object({
 });
 export type PublicTicket = z.infer<typeof publicTicketSchema>;
 export const ticketStatuses = {
-  valid: { label: "Válida", description: "Tu entrada está lista para presentarla al llegar al evento.", className: "bg-[#e9eedf] text-[#315444]" },
+  valid: { label: "Válida", description: "Tu entrada está lista para presentarla al llegar al evento.", className: "bg-accent-surface text-primary-hover" },
   used: { label: "Utilizada", description: "Esta entrada ya fue utilizada y no permite un nuevo ingreso.", className: "bg-amber-50 text-amber-900" },
   revoked: { label: "Revocada", description: "Esta entrada fue revocada y no es válida para ingresar.", className: "bg-red-50 text-red-900" },
 } as const;
