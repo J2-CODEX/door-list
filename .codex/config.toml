@@ -1,0 +1,16 @@
+#[mcp_servers.github]
+#url = "https://api.githubcopilot.com/mcp/"
+## Nombre de la variable de entorno que contiene el PAT.
+## NO pegues el token aquí: Codex lo lee de la variable en tiempo de ejecución.
+#bearer_token_env_var = "GITHUB_PAT_TOKEN"
+
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+# The Codex daemon does not inherit variables defined in the interactive shell.
+http_headers_helper = '''
+/bin/zsh -c '
+  source "$HOME/.zshrc" >/dev/null || exit 1
+  : "${GITHUB_PAT_TOKEN:?GITHUB_PAT_TOKEN is not set}"
+  printf "{\"Authorization\":\"Bearer %s\"}\n" "$GITHUB_PAT_TOKEN"
+'
+'''
