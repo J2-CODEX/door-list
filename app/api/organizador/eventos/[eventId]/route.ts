@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
       return Response.json({ error: "Los filtros no son válidos." }, { status: 400 });
     }
     const search = (searchParams.get("search") ?? "").trim().slice(0, 200);
-    let query = auth.client.from("registrations").select("id,name,email,ticket_type_id,created_at", { count: "exact" }).eq("event_id", eventId);
+    let query = auth.client.from("registrations").select("id,name,email,ticket_type_id,created_at,tickets(status,checked_in_at)", { count: "exact" }).eq("event_id", eventId);
     if (ticketTypeId) query = query.eq("ticket_type_id", ticketTypeId);
     // Quote PostgREST values and treat wildcard characters as literal input.
     if (search) {
@@ -27,8 +27,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
       query = query.or(`name.ilike.${pattern},email.ilike.${pattern}`);
     }
     const { data, count, error } = await query.order("created_at", { ascending: false }).order("id").range((requestedPage - 1) * registrationPageSize, requestedPage * registrationPageSize - 1);
-    if (error) throw new Error("No se pudieron cargar los registros");
-    return Response.json({ event, total: count ?? 0, page: requestedPage, registrations: (data ?? []).map(row => ({ id: row.id, name: row.name, email: row.email, ticketTypeId: row.ticket_type_id, createdAt: row.created_at })) } satisfies OrganizerEventDetail, { headers: { "Cache-Control": "private, no-store" } });
+    const { count: checkedInCount, error: checkInError } = await auth.client.from("registrations")
+      .select("id,tickets!inner(status)", { count: "exact", head: true }).eq("event_id", eventId).eq("tickets.status", "used");
+    if (error || checkInError) throw new Error("No se pudieron cargar los registros");
+    return Response.json({ event, total: count ?? 0, page: requestedPage, checkedInCount: checkedInCount ?? 0, registrations: (data ?? []).map(row => {
+      const ticket = Array.isArray(row.tickets) ? row.tickets[0] : row.tickets;
+      return { id: row.id, name: row.name, email: row.email, ticketTypeId: row.ticket_type_id, createdAt: row.created_at, ticketStatus: ticket?.status ?? null, checkedInAt: ticket?.checked_in_at ?? null };
+    }) } satisfies OrganizerEventDetail, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return Response.json({ error: "No pudimos cargar el evento. Inténtalo de nuevo." }, { status: 500 });
   }

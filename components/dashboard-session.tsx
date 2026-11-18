@@ -10,8 +10,8 @@ import { useRouter } from "next/navigation";
 const SessionContext = createContext("");
 export function useDashboardToken() { return useContext(SessionContext); }
 
-export function DashboardSession({ children }: { children: ReactNode }) {
-  const [identity, setIdentity] = useState({ token: "", email: "" });
+export function DashboardSession({ children, showControls = true }: { children: ReactNode; showControls?: boolean }) {
+  const [identity, setIdentity] = useState({ token: "", email: "", userId: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -27,7 +27,7 @@ export function DashboardSession({ children }: { children: ReactNode }) {
       queueMicrotask(() => {
         if (!active || controller.signal.aborted) return;
         if (!session) {
-          setIdentity({ token: "", email: "" });
+          setIdentity({ token: "", email: "", userId: "" });
           void clearOrganizerSession().finally(() => {
             if (active && !controller.signal.aborted) { router.replace("/iniciar-sesion"); router.refresh(); }
           }).catch(() => {});
@@ -35,12 +35,12 @@ export function DashboardSession({ children }: { children: ReactNode }) {
         }
         void syncOrganizerSession(session.access_token, controller.signal).then(user => {
           if (active && !controller.signal.aborted) {
-            setIdentity({ token: session.access_token, email: user.email });
+            setIdentity({ token: session.access_token, email: user.email, userId: user.userId });
             setError("");
           }
         }).catch(() => {
           if (active && !controller.signal.aborted) {
-            setIdentity({ token: "", email: "" });
+            setIdentity({ token: "", email: "", userId: "" });
             setError("No pudimos validar tu sesión. Vuelve a iniciar sesión.");
           }
         });
@@ -53,7 +53,7 @@ export function DashboardSession({ children }: { children: ReactNode }) {
     setBusy(true); setError("");
     try {
       await clearOrganizerSession();
-      setIdentity({ token: "", email: "" });
+      setIdentity({ token: "", email: "", userId: "" });
       // The server session is already cleared, even if Supabase is unavailable.
       try { await browserClient?.auth.signOut({ scope: "local" }); } finally {
         router.replace("/iniciar-sesion"); router.refresh();
@@ -63,5 +63,5 @@ export function DashboardSession({ children }: { children: ReactNode }) {
   }
   if (error && !identity.token) return <div role="alert" className="py-16 text-center"><p>{error}</p><Button onClick={() => router.replace("/iniciar-sesion")} className="mt-6">Iniciar sesión</Button></div>;
   if (!identity.token) return <div role="status" className="space-y-6 py-12"><span className="sr-only">Validando tu sesión…</span><Skeleton className="h-14 w-2/3" /><div className="grid gap-4 sm:grid-cols-3">{[1, 2, 3].map(key => <Skeleton key={key} className="h-40" />)}</div><Skeleton className="h-64" /></div>;
-  return <SessionContext.Provider value={identity.token}><div className="flex flex-wrap items-center justify-end gap-4 pb-8"><span className="min-w-0 text-xs text-foreground/60 wrap-anywhere">{identity.email}</span><Button onClick={logout} disabled={busy} variant="ghost">{busy ? "Cerrando sesión…" : "Cerrar sesión"}</Button></div>{error && <p role="alert" className="text-sm text-red-800">{error}</p>}<div key={identity.token}>{children}</div></SessionContext.Provider>;
+  return <SessionContext.Provider value={identity.token}>{showControls && <div className="flex flex-wrap items-center justify-end gap-4 pb-8"><span className="min-w-0 text-xs text-foreground/60 wrap-anywhere">{identity.email}</span><Button onClick={logout} disabled={busy} variant="ghost">{busy ? "Cerrando sesión…" : "Cerrar sesión"}</Button></div>}{error && <p role="alert" className="text-sm text-red-800">{error}</p>}<div key={identity.userId}>{children}</div></SessionContext.Provider>;
 }
