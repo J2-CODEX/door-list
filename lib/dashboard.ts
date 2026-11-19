@@ -4,8 +4,8 @@ export type OrganizerEvent = {
   status: "draft" | "published"; capacity: number; registrationCount: number;
   ticketTypes: OrganizerTicketType[];
 };
-export type OrganizerRegistration = { id: string; name: string; email: string; ticketTypeId: string; createdAt: string };
-export type OrganizerEventDetail = { event: OrganizerEvent; registrations: OrganizerRegistration[]; total: number; page: number };
+export type OrganizerRegistration = { id: string; name: string; email: string; ticketTypeId: string; createdAt: string; ticketStatus: "valid" | "used" | "revoked" | null; checkedInAt: string | null };
+export type OrganizerEventDetail = { event: OrganizerEvent; registrations: OrganizerRegistration[]; total: number; page: number; checkedInCount: number };
 export type DailyRegistrationCount = { date: string; count: number };
 export type EventRegistrationCounts = {
   eventId: string;

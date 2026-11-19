@@ -38,6 +38,41 @@ body {
   color: var(--foreground);
 }
 
+/* Door control: opaque surfaces, large signals and thumb-reachable actions. */
+.scan-shell {
+  @apply mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-6 py-8;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+.scan-panel-link {
+  @apply inline-flex min-h-12 shrink-0 items-center rounded-sm text-sm font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground;
+}
+.scan-workspace { @apply flex flex-1 flex-col gap-4; }
+.scan-stage { @apply flex flex-1 flex-col; }
+.scan-camera {
+  @apply relative flex min-h-72 flex-1 overflow-hidden rounded-2xl bg-foreground;
+  height: clamp(18rem, 43dvh, 28rem);
+}
+.scan-camera video { @apply absolute inset-0 h-full w-full object-cover; }
+.scan-camera-guide {
+  @apply pointer-events-none absolute inset-12 rounded-xl border-4 border-surface;
+}
+.scan-camera-instruction {
+  @apply absolute inset-x-0 bottom-0 bg-foreground px-4 py-4 text-center text-base font-semibold text-surface;
+}
+.scan-result {
+  @apply flex min-h-80 flex-1 flex-col items-center justify-center gap-4 rounded-2xl bg-foreground p-6 text-center text-surface;
+}
+.scan-result[data-status="used"] { @apply bg-amber-100 text-amber-950; }
+.scan-result[data-status="notFound"] { @apply bg-red-100 text-red-950; }
+.scan-result[data-status="error"] { @apply border-2 border-foreground bg-surface text-foreground; }
+.scan-result-title { @apply text-5xl leading-none font-semibold tracking-tight; }
+.scan-result-action { @apply text-xl font-semibold; }
+.scan-result-detail { @apply w-full border-t border-current/20 pt-4 leading-6 wrap-anywhere; }
+.scan-placeholder { @apply flex min-h-80 flex-1 flex-col justify-center gap-6 rounded-2xl border-2 border-foreground bg-surface p-6 text-center; }
+.scan-manual { @apply flex min-h-80 flex-1 flex-col justify-center gap-6; }
+.scan-controls { @apply sticky bottom-0 mt-auto space-y-4 bg-background pt-4; padding-bottom: env(safe-area-inset-bottom); }
+.scan-footer-note { @apply text-center text-sm leading-5; }
+
 .registration-chart-tooltip {
   @apply rounded-xl border border-foreground/10 bg-surface p-4 text-sm leading-5 text-foreground shadow-sm;
 }
