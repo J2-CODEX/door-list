@@ -9,6 +9,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .env
+/test-results/
+/playwright-report/
+/tests/e2e/.env.local
 .vercel
 *.tsbuildinfo
 next-env.d.ts
