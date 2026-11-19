@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import QRCode from "qrcode";
-import { buildTicketEmail, getTicketEmailConfig, sendTicketEmail } from "../lib/email/ticket-email.ts";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import vm from "node:vm";
+import ts from "typescript";
+import * as dates from "../lib/dates.ts";
+
+const exports = {};
+const require = createRequire(import.meta.url);
+const source = ts.transpileModule(readFileSync(new URL("../lib/email/ticket-email.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+}).outputText;
+vm.runInThisContext(`(function(exports, require) { ${source}\n})`)(exports, name => name === "@/lib/dates" ? dates : require(name));
+const { buildTicketEmail, getTicketEmailConfig, sendTicketEmail } = exports;
 
 const ticket = { code: "a".repeat(64), status: "valid", name: 'Ana <img src=x onerror="alert(1)">', email: "ana@example.com", event: { title: "Encuentro & comunidad", starts_at: "2026-11-22T02:00:00Z", venue: "Casa <Norte>" }, ticketType: "General" };
 const config = { apiKey: "test-key", from: "Door List <entradas@example.com>" };
@@ -81,6 +93,22 @@ test("retries ambiguous network failures without issuing another email payload",
   });
   assert.equal(calls.length, 2);
   assert.equal(calls[0].headers["Idempotency-Key"], calls[1].headers["Idempotency-Key"]);
+});
+
+test("an explicit resend has a separate key, stable for retries and distinct for the next resend", async () => {
+  const keys = [];
+  const request = async (_url, options) => {
+    keys.push(options.headers["Idempotency-Key"]);
+    return Response.json({ id: "email-test" });
+  };
+  await sendTicketEmail(ticket, config, request);
+  await sendTicketEmail(ticket, config, request, { deliveryId: "resend-one" });
+  await sendTicketEmail(ticket, config, request, { deliveryId: "resend-one" });
+  await sendTicketEmail(ticket, config, request, { deliveryId: "resend-two" });
+  assert.notEqual(keys[0], keys[1]);
+  assert.equal(keys[1], keys[2]);
+  assert.notEqual(keys[2], keys[3]);
+  assert.ok(keys[1].startsWith("ticket-resend/"));
 });
 
 test("rejects missing configuration without contacting Resend", async () => {
