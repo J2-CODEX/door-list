@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:e2e": "playwright test",
+    "test:e2e:camera": "playwright test qr-camera.spec.mjs",
+    "test:e2e:list": "playwright test --list"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.3",
@@ -27,6 +30,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
