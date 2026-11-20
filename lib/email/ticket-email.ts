@@ -63,12 +63,12 @@ ${details.map(([label, value]) => `<tr><td style="padding:0 0 20px;overflow-wrap
 }
 
 /** Resend acceptance is not a guarantee of inbox delivery. Never log payloads or credentials. */
-export async function sendTicketEmail(ticket: PublicTicket, config: { apiKey: string; from: string; to?: string }, request: typeof fetch = fetch) {
+export async function sendTicketEmail(ticket: PublicTicket, config: { apiKey: string; from: string; to?: string }, request: typeof fetch = fetch, options: { deliveryId?: string } = {}) {
   if (!config.apiKey.trim() || !config.from.trim()) throw new Error("Email configuration missing");
   const payload = await buildTicketEmail(ticket, config.from);
   payload.to = [config.to ?? ticket.email];
   // Same ticket and content share a key, including after an ambiguous network failure.
-  const key = `ticket-email/${createHash("sha256").update(ticket.code).update(JSON.stringify(payload)).digest("hex")}`;
+  const key = `${options.deliveryId ? "ticket-resend" : "ticket-email"}/${createHash("sha256").update(ticket.code).update(JSON.stringify(payload)).update(options.deliveryId ?? "").digest("hex")}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await request("https://api.resend.com/emails", {
