@@ -12,8 +12,9 @@ import { useDashboardQuery } from "@/lib/use-dashboard-query";
 import type { OrganizerEvent } from "@/lib/dashboard";
 import { checkInRequestSchema, checkInResponseSchema, normalizeTicketCode, type CheckInRequest, type ScanResult as ScanResultData } from "@/lib/check-in";
 import { ScanResult } from "./scan-result";
+import { EmailTicketSearch } from "./email-ticket-search";
 
-type Phase = "camera" | "manual" | "pending" | "result" | "cameraError" | "paused";
+type Phase = "camera" | "manual" | "email" | "pending" | "result" | "cameraError" | "paused";
 
 export function TicketScanner({ initialEventId = "" }: { initialEventId?: string }) {
   const token = useDashboardToken();
@@ -94,7 +95,7 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
       } catch {
         if (!cancelled) {
           instance?.destroy(); scanner.current = null;
-          setCameraMessage("No pudimos abrir la cámara. Permite el acceso en tu navegador y usa una conexión HTTPS, o ingresa el código manualmente.");
+          setCameraMessage("No pudimos abrir la cámara. Permite el acceso en tu navegador y usa una conexión HTTPS, ingresa el código o busca por email.");
           setPhase("cameraError");
         }
       }
@@ -105,7 +106,7 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
     return () => { cancelled = true; document.removeEventListener("visibilitychange", onVisibility); instance?.destroy(); scanner.current = null; };
   }, [eventId, phase, validate]);
 
-  function resume(next: "camera" | "manual" = "camera") {
+  function resume(next: "camera" | "manual" | "email" = "camera") {
     locked.current = false; setReady(false); setFlashAvailable(false); setFlashOn(false);
     setManualCode(""); setCameraMessage(""); setResult(null); setPhase(next);
   }
@@ -139,6 +140,7 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
         </div>
         {phase === "pending" && <div className="scan-placeholder" role="status" aria-busy="true"><h2 className="text-4xl font-semibold tracking-tight">Validando…</h2><p>Espera la confirmación antes de dejar pasar.</p></div>}
         {phase === "result" && result && <ScanResult result={result} />}
+        {phase === "email" && <EmailTicketSearch key={eventId} eventId={eventId} onValidate={code => { void validate(code); }} />}
         {(phase === "cameraError" || phase === "paused") && <div className="scan-placeholder" role="status"><h2 className="text-2xl font-semibold">{phase === "paused" ? "Cámara pausada" : "Cámara no disponible"}</h2><p>{phase === "paused" ? "Retoma la lectura cuando estés listo." : cameraMessage}</p></div>}
         {phase === "manual" && <form id="manual-check-in" onSubmit={submitManual} className="scan-manual">
           <h2 className="text-2xl font-semibold tracking-tight">Ingresar código</h2>
@@ -149,10 +151,11 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
       </div>
       {phase === "camera" && cameraMessage && <p role="status" className="text-sm">{cameraMessage}</p>}
       <div className="scan-controls">
-        {phase === "result" ? <><Button size="scan" className="w-full" onClick={() => resume()}>Escanear otra entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume("manual")}>Ingresar código</Button></> : phase === "manual" ? <><Button size="scan" className="w-full" type="submit" form="manual-check-in" disabled={!manualCode.trim()}>Validar entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button></> : phase === "pending" ? <Button size="scan" className="w-full" disabled>Confirmando ingreso…</Button> : <>
+        {phase === "result" ? <><Button size="scan" className="w-full" onClick={() => resume()}>Escanear otra entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume("manual")}>Ingresar código</Button></> : phase === "manual" ? <><Button size="scan" className="w-full" type="submit" form="manual-check-in" disabled={!manualCode.trim()}>Validar entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button></> : phase === "email" ? <Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button> : phase === "pending" ? <Button size="scan" className="w-full" disabled>Confirmando ingreso…</Button> : <>
           {phase !== "camera" && <Button size="scan" className="w-full" onClick={() => resume()}>Abrir cámara</Button>}
           <div className="flex gap-4"><Button size="scan" variant="secondary" className="min-w-0 flex-1" onClick={() => resume("manual")}>Ingresar código</Button>{phase === "camera" && flashAvailable && <Button size="scan" variant="secondary" aria-pressed={flashOn} onClick={() => void toggleFlash()}>Linterna {flashOn ? "encendida" : "apagada"}</Button>}</div>
         </>}
+        {phase !== "pending" && (phase === "email" ? <Button size="scan" variant="secondary" className="w-full" onClick={() => resume("manual")}>Ingresar código</Button> : <Button size="scan" variant="secondary" className="w-full" onClick={() => resume("email")}>Buscar por email</Button>)}
         <p className="scan-footer-note">{phase === "camera" ? "Al leer una entrada válida se registra su ingreso." : "Revisa el resultado antes de dejar pasar."}</p>
       </div>
     </> : <p className="py-12 text-base">Selecciona el evento para abrir la cámara.</p>}
