@@ -18,6 +18,7 @@ import { Notice } from "@/components/ui/notice";
 import { EventStatus } from "@/components/dashboard-ui";
 import { SiteHeader, SiteFooter } from "@/components/site-header";
 import type { Event, TicketType } from "@/lib/events";
+import { getTicketTypeSaveError, ticketTypeSaveErrors } from "@/lib/ticket-type-errors";
 import { browserClient as supabase } from "@/lib/supabase/browser";
 const emptyEvent = { title: "", description: "", starts_at: "", venue: "", status: "draft" as "draft" | "published", capacity: "" };
 
@@ -96,6 +97,9 @@ export default function Organizer() {
       .filter(ticketType => ticketType.id !== ticketTypeId)
       .reduce((sum, ticketType) => sum + ticketType.capacity, 0)
     : 0;
+  const ticketTypeCapacityInvalid = ticketTypeError === ticketTypeSaveErrors.minimumCapacity
+    || ticketTypeError === ticketTypeSaveErrors.maximumCapacity
+    || ticketTypeError === `El aforo disponible para este tipo es ${ticketTypeAvailable}.`;
 
   function openTicketType(event: Event, trigger: HTMLButtonElement, ticketType?: TicketType) {
     ticketTypeTrigger.current = trigger;
@@ -119,12 +123,12 @@ export default function Organizer() {
     try {
       const values = { name: ticketTypeName.trim(), capacity, event_id: ticketTypeEvent };
       const { error } = ticketTypeId ? await supabase.from("ticket_types").update(values).eq("id", ticketTypeId).eq("event_id", ticketTypeEvent) : await supabase.from("ticket_types").insert(values);
-      if (error) { setTicketTypeError(error.code === "23514" ? "El aforo supera el disponible para este evento. Revisa los datos." : "No pudimos guardar el tipo de entrada. Inténtalo de nuevo."); return; }
+      if (error) { setTicketTypeError(getTicketTypeSaveError(error)); return; }
       refresh();
       setTicketTypeSheetOpen(false);
       setMessage("Tipo de entrada guardado.");
     } catch {
-      setTicketTypeError("No se pudo guardar el tipo de entrada. Inténtalo de nuevo.");
+      setTicketTypeError(ticketTypeSaveErrors.unknown);
     } finally {
       setBusy(false);
     }
@@ -217,11 +221,11 @@ export default function Organizer() {
               <fieldset disabled={busy || ticketTypeAvailable < 1} className="min-w-0 space-y-4">
                 <legend className="sr-only">Detalles del tipo de entrada</legend>
                 <Field><FieldLabel htmlFor="ticket-type-name">Nombre del tipo</FieldLabel><Input id="ticket-type-name" required placeholder="Ej. General, VIP o Estudiantes" value={ticketTypeName} onChange={e => setTicketTypeName(e.target.value)} /></Field>
-                <Field><FieldLabel htmlFor="ticket-type-capacity">Aforo</FieldLabel><Input id="ticket-type-capacity" required type="number" min="1" max={Math.max(1, ticketTypeAvailable)} step="1" aria-describedby="ticketType-capacity-help" placeholder="Ej. 50" value={ticketTypeCapacity} onChange={e => setTicketTypeCapacity(e.target.value)} /></Field>
+                <Field><FieldLabel htmlFor="ticket-type-capacity">Aforo</FieldLabel><Input id="ticket-type-capacity" required type="number" min="1" max={Math.max(1, ticketTypeAvailable)} step="1" aria-invalid={ticketTypeCapacityInvalid} aria-describedby={ticketTypeCapacityInvalid ? "ticketType-capacity-help ticketType-error" : "ticketType-capacity-help"} placeholder="Ej. 50" value={ticketTypeCapacity} onChange={e => setTicketTypeCapacity(e.target.value)} /></Field>
                 <FieldDescription id="ticketType-capacity-help">{ticketTypeId ? `Puedes asignar hasta ${Math.max(0, ticketTypeAvailable)} plazas, incluyendo las que ya tiene este tipo.` : `Puedes asignar hasta ${Math.max(0, ticketTypeAvailable)} plazas sin superar el límite del evento.`}</FieldDescription>
               </fieldset>
               {ticketTypeAvailable < 1 && <Notice role="status">No quedan plazas disponibles. Aumenta el límite del evento o reduce el aforo de otro tipo de entrada.</Notice>}
-              {ticketTypeError && <Notice role="alert" tone="error">{ticketTypeError}</Notice>}
+              {ticketTypeError && <Notice id="ticketType-error" role="alert" tone="error">{ticketTypeError}</Notice>}
             </form>
             <SheetFooter>
               <SheetClose asChild><Button type="button" disabled={busy} variant="secondary">Cancelar</Button></SheetClose>
