@@ -118,12 +118,19 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# Development cover fixtures; use seed buckets --remote=YOUR_PROJECT_REF for cloud.
+# Keep these limits aligned with the cover migration.
+# objects_path is relative to supabase/ and preserves eventId/imageId.webp object keys.
+[storage.buckets.event-covers]
+public = false
+file_size_limit = "32MiB"
+allowed_mime_types = ["image/webp"]
+objects_path = "./seed-assets/event-covers"
+
+[storage.buckets.event-cover-staging]
+public = false
+file_size_limit = "5MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

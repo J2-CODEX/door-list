@@ -50,3 +50,16 @@ Sin `RUN_E2E_DB_TESTS=1`, el flujo con BD se omite antes de abrir el navegador y
 Cada ejecución usa un título y correo únicos. Los eventos, tipos de entrada, registros, entradas usadas y mensajes permanecen en el entorno de pruebas para inspección; no hay borrado automático ni SQL que desactive restricciones. Desecha o reinicia el entorno aislado según tu procedimiento habitual. No ejecutes la suite contra producción. Las capturas, vídeos y trazas están deshabilitados; `preserveOutput: "never"` elimina también los artefactos automáticos de contexto de error al terminar cada prueba, para evitar conservar datos de asistentes y entradas.
 
 Referencias: [Next.js 16.4.5 y Playwright](https://github.com/vercel/next.js/blob/v16.4.5/docs/01-app/02-guides/testing/playwright.mdx), [Playwright Test](https://playwright.dev/docs/test-intro), [API de Mailosaur](https://mailosaur.com/docs/api).
+
+## Formularios con servicios simulados
+
+`forms-ui.spec.mjs` verifica los seis formularios del organizador y `/scan` con React Hook Form y el SDK reales. Su vista previa usa un dominio ficticio; Playwright intercepta las solicitudes de autenticación, persistencia y API, y bloquea destinos inesperados. No consulta bases de datos ni envía correos.
+
+Desde la raíz del repositorio, con las dependencias y Chromium ya disponibles, inicia la vista previa y ejecuta únicamente esta prueba en otra terminal:
+
+```sh
+node_modules/.bin/next dev tests/fixtures/forms-preview --hostname 127.0.0.1 --port 3117
+E2E_BASE_URL=http://127.0.0.1:3117 node_modules/.bin/playwright test forms-ui.spec.mjs
+```
+
+La suite cubre validación, errores de aforo, reintentos, envíos duplicados, reinicio de valores, recuperación de sesión, conservación de portada pendiente, cancelación de búsquedas y confirmación del ingreso. Comprueba teclado y tamaños de 390 × 844 y 1280 × 900; guarda dos capturas con datos ficticios (`door-list-event-form-390.png` y `door-list-event-form-1280.png`) en el directorio temporal del sistema. Se omite si la URL no usa el puerto 3117.

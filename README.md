@@ -10,9 +10,70 @@ Aplicación Next.js para mostrar un evento y gestionar eventos y tipos de entrad
 4. Habilita el acceso por correo y contraseña en Supabase Auth y crea las cuentas de organizador allí.
 5. Ejecuta `npm run dev` y entra en `/organizador`.
 
-Cada usuario autenticado administra únicamente sus propios eventos gracias a las políticas RLS. Los eventos publicados y sus tipos de entrada son visibles públicamente mediante la API de Supabase. La landing de `/` sigue mostrando datos de ejemplo.
+Cada usuario autenticado administra únicamente sus propios eventos gracias a las políticas RLS. Los eventos publicados y sus tipos de entrada son visibles públicamente mediante la API de Supabase. La cartelera de `/` consulta los eventos publicados vigentes de la base de datos.
 
 Cada evento tiene un límite de asistentes. La suma del aforo de sus tipos de entrada no puede superar ese límite; tampoco se puede reducir el límite por debajo de la suma asignada. La regla se comprueba en la interfaz y en la base de datos, incluso para operaciones concurrentes. Las fechas se introducen y muestran en la zona horaria del navegador.
+
+## Datos semilla para desarrollo
+
+`supabase/seed.sql` carga siete eventos publicados, catorce tipos de entrada y veinte registros ficticios. El trigger existente emite una entrada por registro. «Mesa con ponentes» del encuentro de comunidades tiene tres plazas y tres registros, por lo que aparece agotada; «General» sigue disponible. El evento «Noche de jazz íntimo» está completamente agotado: sus ocho plazas de «General» y dos de «Primera fila» tienen diez registros. No se envían correos al cargar SQL.
+
+Las fechas se calculan al ejecutar la semilla en `America/Guayaquil`: el encuentro es hoy, el concierto es el domingo de esta semana, tecnología queda a mitad de los días restantes del mes y gastronomía al final del mes. Arte es el día 10 del mes siguiente y la caminata el día 20 de dentro de dos meses. La noche de jazz es dentro de catorce días a las 19:00. Si se carga un domingo o el último día del mes, algunos eventos coinciden en el día actual y siguen visibles durante ese día.
+
+**Requisito previo: debe existir un usuario organizador con el correo `jotajota18@hotmail.com` en Supabase Auth del proyecto `aagediqdfxnyxzeqebzr`.** Compruébalo en **Authentication → Users** antes de ejecutar la semilla. No basta con que exista cualquier organizador: `supabase/seed.sql` busca específicamente ese correo.
+
+La razón es que cada evento necesita un propietario: `events.owner_id` referencia el UUID de una cuenta de `auth.users`. La semilla consulta el UUID de `jotajota18@hotmail.com` y le asigna los siete eventos, incluidos los seis anteriores si ya estaban cargados con otro propietario. Las políticas RLS usan ese UUID para que puedas administrar tus eventos y consultar sus asistentes al iniciar sesión en `/organizador` con tu contraseña actual.
+
+La carga no crea cuentas ni modifica contraseñas, identidades o sesiones. Si la cuenta no existe, está eliminada o el correo corresponde a varias cuentas, la semilla se detiene antes de modificar datos con un mensaje para revisar Auth. La cuenta de ejemplo `organizador@door-list.test`, si se creó con una versión anterior de la semilla, no se elimina ni se modifica.
+
+La aplicación usa Supabase en la nube. Esta carga requiere Supabase CLI 3.4 o posterior y acceso al proyecto; no requiere Docker ni una base local. Usa estos datos ficticios únicamente en un proyecto de desarrollo. Ejecuta los comandos desde la raíz del repositorio. Si `npx` necesita descargar la CLI, confirma primero la instalación de dependencias. Antes de ejecutar comandos que accedan a la base de datos, obtén la confirmación explícita exigida por `AGENTS.md`.
+
+Inicia sesión en la CLI. Los comandos siguientes apuntan al proyecto en la nube `aagediqdfxnyxzeqebzr`; `NEXT_PUBLIC_SUPABASE_URL` debe corresponder a ese mismo proyecto:
+
+```sh
+npx supabase login
+```
+
+La base debe tener aplicadas todas las migraciones de `supabase/migrations/`, incluida la de portadas. Si faltan migraciones, revisa primero cuáles se aplicarían y después aplícalas con autorización:
+
+```sh
+npx supabase db push --remote=aagediqdfxnyxzeqebzr --dry-run
+npx supabase db push --remote=aagediqdfxnyxzeqebzr
+```
+
+Carga primero los datos de la semilla:
+
+```sh
+npx supabase db query --remote=aagediqdfxnyxzeqebzr --file supabase/seed.sql
+```
+
+`db query` ejecuta el SQL indicado por `--file` en la base del proyecto seleccionado por `--remote`. Busca la cuenta organizadora existente, inserta o actualiza los siete eventos y sus catorce tipos de entrada, añade los veinte registros ficticios que falten y guarda los metadatos de las portadas. El trigger de registros emite las entradas. La carga se ejecuta en una transacción: si falla, se revierten sus cambios. No reinicia la base ni sube los archivos de imagen.
+
+Después de que la carga SQL termine correctamente, sube las portadas:
+
+```sh
+npx supabase seed buckets --remote=aagediqdfxnyxzeqebzr
+```
+
+`seed buckets` lee `supabase/config.toml`, crea o actualiza los buckets `event-covers` y `event-cover-staging`, y sube las siete portadas WebP de `supabase/seed-assets/event-covers/` al bucket `event-covers`. Conserva las rutas que usa el SQL y sobrescribe los archivos que ya existan en esas mismas rutas. Ambos buckets permanecen privados. Si pregunta si debe actualizar sus propiedades, la configuración conserva la privacidad, límites y tipos de archivo de la migración de portadas. Este comando no ejecuta `seed.sql`, no crea usuarios ni eventos y no resetea la base.
+
+El destino explícito `--remote=aagediqdfxnyxzeqebzr` permite usar ambos comandos sin vincular el repositorio con `supabase link`.
+
+Mantén `.env.local` apuntando al proyecto en la nube, con su clave pública en `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` y su clave secreta en `SUPABASE_SECRET_KEY` (o la clave `service_role` en `SUPABASE_SERVICE_ROLE_KEY`). La clave del servidor es necesaria para servir las portadas. Reinicia `npm run dev` si cambias las variables y abre `/`.
+
+SQL y archivos pueden cargarse varias veces: los UUID y correos de los datos ficticios son fijos; los eventos y tipos se actualizan, los registros existentes se omiten y los códigos de entrada y check-ins se conservan. Auth se consulta sin modificarlo. Las portadas modificadas desde el organizador conservan sus metadatos; Storage sobrescribe solo los siete archivos de ejemplo en sus mismas rutas. No se modifican eventos ni asistentes ajenos a la semilla. Si has alterado los aforos de estos eventos, la recarga puede fallar por las restricciones existentes; toda la carga SQL se revierte en ese caso.
+
+Para recargar, repite únicamente los dos comandos de carga anteriores sobre el mismo proyecto. No uses `db reset`: esta tarea conserva los demás datos del proyecto. No se necesita ninguna migración nueva ni se modifica el esquema. Las fotografías quedan versionadas y no se descargan de Internet durante la carga; sus fuentes están en [supabase/seed-assets/README.md](supabase/seed-assets/README.md).
+
+Referencia oficial: [semillas de base de datos](https://supabase.com/docs/guides/local-development/seeding-your-database) y [comandos de Supabase CLI](https://supabase.com/docs/reference/cli/introduction).
+
+## Imágenes de portada
+
+Los eventos sin imagen muestran un placeholder en la cartelera, el registro y las vistas del organizador. Al guardar una portada, estas vistas muestran la imagen. Los eventos anteriores no reciben fotografías automáticamente.
+
+Aplica `20261125120000_event_cover_images.sql` con autorización explícita de acceso a la base de datos. Configura `SUPABASE_SECRET_KEY` en `.env.local` y en el servidor de producción para guardar y servir imágenes desde los buckets privados. Cópiala de **Settings → API Keys → Secret keys** del mismo proyecto que la URL pública (empieza por `sb_secret_`); nunca añadas el prefijo `NEXT_PUBLIC_`. Reinicia el servidor de desarrollo después de cambiar las variables. Se conserva `SUPABASE_SERVICE_ROLE_KEY` como alternativa para instalaciones antiguas; si están ambas, se usa `SUPABASE_SECRET_KEY`.
+
+La consulta del estado de la portada usa la sesión verificada del propietario y RLS; no necesita la clave de servicio. Un 503 al guardar o descargar puede indicar configuración incompleta; un 503 al consultar el estado requiere revisar la migración, los permisos o la conectividad. Las pruebas aisladas de `tests/fixtures/cover-preview` no necesitan credenciales ni acceden a Supabase.
 
 ## Gráfica del dashboard
 
@@ -28,7 +89,7 @@ Pruebas sin base de datos: `node --test tests/registration-series.test.mjs tests
 
 ## Registro público
 
-Cada evento publicado vigente tiene un enlace desde el organizador a `/eventos/[eventId]/registro`. La fecha límite es el día del evento completo en `America/Guayaquil`. La portada conserva sus datos de ejemplo.
+Cada evento publicado vigente tiene un enlace desde el organizador a `/eventos/[eventId]/registro`. La fecha límite es el día del evento completo en `America/Guayaquil`.
 
 Aplica también `20261106120000_public_registration.sql` antes de usar el registro. Requiere confirmación del usuario antes de ejecutar cualquier comando de base de datos. La migración crea registros privados, consultas públicas agregadas y una RPC que comprueba disponibilidad e inserta en una transacción. Un email normalizado solo puede registrarse una vez por evento.
 
