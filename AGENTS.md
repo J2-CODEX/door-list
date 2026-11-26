@@ -1,3 +1,4 @@
+Consulta MEMORY.md al comenzar para conocer la arquitectura, las decisiones y los pendientes documentados del proyecto.
 Consulta la documentación oficial de la versión de Next.js instalada antes de escribir código del framework.
 Para crear, modificar o revisar UI, consulta y aplica .agents/skills/door-list-ui/SKILL.md.
 Usa Server Components por defecto.
