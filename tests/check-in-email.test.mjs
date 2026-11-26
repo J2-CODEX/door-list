@@ -103,69 +103,10 @@ test("used, revoked and absent tickets cannot expose an actionable ticket code",
   }
 });
 
-function uiHarness() {
-  const state = [], requests = [], validated = [];
-  let cursor = 0, cleanup;
-  const { EmailTicketSearch } = loadTs("app/scan/email-ticket-search.tsx", {
-    react: {
-      useState(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return [state[index], value => { state[index] = value; }]; },
-      useRef(initial) { const index = cursor++; return state[index] ??= { current: initial }; },
-      useEffect(fn) { cleanup ??= fn(); },
-    },
-    "@/components/ui/button": { Button: "button" }, "@/components/ui/input": { Input: "input" },
-    "@/components/ui/field": { Field: "div", FieldLabel: "label", FieldDescription: "p", FieldError: "error" },
-    "@/components/dashboard-session": { useDashboardToken: () => "owner-token" },
-  }, { fetch: (url, init) => new Promise(resolve => requests.push({ url, init, resolve })) });
-  function nodes(tree) {
-    if (!tree || typeof tree !== "object") return [];
-    const children = tree.props?.children;
-    return [tree, ...(Array.isArray(children) ? children.flat(Infinity) : [children]).flatMap(nodes)];
-  }
-  const h = {
-    requests, validated,
-    render: () => { cursor = 0; return EmailTicketSearch({ eventId, onValidate: code => validated.push(code) }); },
-    find: (type, text) => nodes(h.render()).find(node => node.type === type && (!text || node.props.children === text)),
-    change: email => h.find("input").props.onChange({ target: { value: email } }),
-    submit: () => h.find("form").props.onSubmit({ preventDefault() {} }),
-    unmount: () => cleanup(),
-  };
-  return h;
-}
-test("email search authenticates, prevents duplicate requests and requires a separate admission action", async () => {
-  const h = uiHarness(); h.change(" ANA@EXAMPLE.COM ");
-  const pending = h.submit(); await h.submit();
-  assert.equal(h.requests.length, 1);
-  assert.equal(h.find("button", "Buscando asistente…").props.disabled, true);
-  assert.equal(h.requests[0].init.headers.Authorization, "Bearer owner-token");
-  assert.deepEqual(JSON.parse(h.requests[0].init.body), { eventId, email: "ana@example.com" });
-  h.requests[0].resolve(Response.json({ registration })); await pending;
-  assert.deepEqual(h.validated, []);
-  const confirm = h.find("button", "Registrar ingreso");
-  assert.equal(confirm.props.disabled, false);
-  confirm.props.onClick();
-  assert.deepEqual(h.validated, [ticketCode]);
-  h.change("other@example.com");
-  assert.equal(h.find("button", "Registrar ingreso").props.disabled, true);
-});
-test("search errors check HTTP status before the body and disable stale admission", async () => {
-  const h = uiHarness(); h.change(registration.email);
-  let pending = h.submit(); h.requests[0].resolve(Response.json({ registration })); await pending;
-  pending = h.submit();
-  assert.equal(h.find("button", "Registrar ingreso").props.disabled, true);
-  h.requests[1].resolve({ ok: false, status: 503, json() { assert.fail("Must not parse provider errors"); } }); await pending;
-  assert.match(h.find("error").props.children, /Revisa la conexión/);
-  assert.equal(h.find("button", "Registrar ingreso").props.disabled, true);
-  pending = h.submit(); h.requests[2].resolve({ ok: false, status: 404, json() { assert.fail("Must not parse error body"); } }); await pending;
-  assert.equal(h.find("button", "Registrar ingreso"), undefined);
-});
-test("invalid emails do not send HTTP; used and revoked results cannot admit; unmount aborts", async () => {
-  const invalid = uiHarness(); invalid.change("bad"); await invalid.submit(); assert.equal(invalid.requests.length, 0);
-  for (const ticketStatus of ["used", "revoked", null]) {
-    const h = uiHarness(); h.change(registration.email);
-    const pending = h.submit(); h.requests[0].resolve(Response.json({ registration: { ...registration, ticketStatus, ticketCode: null } })); await pending;
-    const button = h.find("button", "Registrar ingreso"); assert.equal(button.props.disabled, true); button.props.onClick(); assert.deepEqual(h.validated, []);
-  }
-  const h = uiHarness(); h.change(registration.email); const pending = h.submit(); h.unmount();
-  assert.equal(h.requests[0].init.signal.aborted, true);
-  h.requests[0].resolve(Response.json({ registration })); await pending;
+// UI behavior is covered with real React Hook Form in e2e/forms-ui.spec.mjs.
+
+test("email search normalizes input and reports Spanish field errors", () => {
+  const { emailTicketSearchRequestSchema } = loadTs("lib/check-in-email.ts");
+  assert.equal(emailTicketSearchRequestSchema.parse({ eventId, email: " ANA@EXAMPLE.COM " }).email, "ana@example.com");
+  assert.match(emailTicketSearchRequestSchema.safeParse({ eventId, email: "bad" }).error.issues[0].message, /email completo/);
 });

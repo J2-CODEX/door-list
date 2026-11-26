@@ -1,30 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useDashboardToken } from "@/components/dashboard-session";
-import { emailTicketSearchRequestSchema, emailTicketSearchResponseSchema, type EmailTicketSearchResponse } from "@/lib/check-in-email";
+import { emailTicketSearchRequestSchema, emailTicketSearchResponseSchema, type EmailTicketSearchRequest, type EmailTicketSearchResponse } from "@/lib/check-in-email";
 import { formatEventDate } from "@/lib/dates";
 
 export function EmailTicketSearch({ eventId, onValidate }: { eventId: string; onValidate: (ticketCode: string) => void }) {
   const token = useDashboardToken();
-  const [email, setEmail] = useState("");
+  const form = useForm<EmailTicketSearchRequest>({ resolver: zodResolver(emailTicketSearchRequestSchema), defaultValues: { eventId, email: "" }, mode: "onTouched", reValidateMode: "onChange" });
+  const email = useWatch({ control: form.control, name: "email" });
   const [registration, setRegistration] = useState<EmailTicketSearchResponse["registration"] | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
-  const [invalid, setInvalid] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
 
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function search(input: EmailTicketSearchRequest) {
     if (request.current) return;
-    const input = emailTicketSearchRequestSchema.safeParse({ eventId, email });
-    setInvalid(!input.success);
-    if (!input.success) { setMessage("Ingresa el email completo del asistente."); return; }
     const controller = new AbortController();
     request.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -32,7 +30,7 @@ export function EmailTicketSearch({ eventId, onValidate }: { eventId: string; on
     try {
       const response = await fetch("/api/organizador/check-in/buscar", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(input.data), signal: controller.signal,
+        body: JSON.stringify(input), signal: controller.signal,
       });
       if (controller.signal.aborted) return;
       if (!response.ok) {
@@ -56,21 +54,23 @@ export function EmailTicketSearch({ eventId, onValidate }: { eventId: string; on
 
   const currentEmail = email.trim().toLowerCase();
   const canCheckIn = registration?.ticketStatus === "valid" && Boolean(registration.ticketCode)
-    && registration.email === currentEmail && !pending && !message;
+    && registration.email === currentEmail && !pending && !message && !form.formState.errors.email;
   return <section className="space-y-6" aria-labelledby="email-search-heading">
     <div className="space-y-2">
       <h2 id="email-search-heading" className="text-2xl font-semibold tracking-tight">Buscar por email</h2>
       <p>Si el QR no se deja leer, busca el email usado para registrarse.</p>
     </div>
-    <form onSubmit={search} className="space-y-4" aria-busy={pending}>
-      <Field data-invalid={invalid}>
-        <FieldLabel htmlFor="attendee-email">Email del asistente</FieldLabel>
-        <Input id="attendee-email" name="email" type="email" autoComplete="off" autoCapitalize="none" spellCheck={false}
-          required maxLength={254} value={email} disabled={pending} aria-invalid={invalid}
-          aria-describedby={invalid ? "email-search-help email-search-message" : "email-search-help"}
-          onChange={event => { setEmail(event.target.value); setInvalid(false); }} />
-        <FieldDescription id="email-search-help">La búsqueda usa el email completo y solo incluye este evento. Buscar no registra el ingreso.</FieldDescription>
-      </Field>
+    <form noValidate onSubmit={event => { void form.handleSubmit(search)(event); }} className="space-y-4" aria-busy={pending}>
+      <Controller name="email" control={form.control} render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor="attendee-email">Email del asistente</FieldLabel>
+          <Input {...field} id="attendee-email" type="email" autoComplete="off" autoCapitalize="none" spellCheck={false}
+            required maxLength={254} disabled={pending} aria-invalid={fieldState.invalid}
+            aria-describedby={fieldState.invalid ? "email-search-help email-search-error" : "email-search-help"} />
+          <FieldDescription id="email-search-help">La búsqueda usa el email completo y solo incluye este evento. Buscar no registra el ingreso.</FieldDescription>
+          {fieldState.invalid && <FieldError id="email-search-error" errors={[fieldState.error]} />}
+        </Field>
+      )} />
       <Button type="submit" size="scan" className="w-full" disabled={pending || !email.trim()}>{pending ? "Buscando asistente…" : "Buscar asistente"}</Button>
     </form>
     {message && (notFound ? <p id="email-search-message" role="status">{message}</p> : <FieldError id="email-search-message">{message}</FieldError>)}

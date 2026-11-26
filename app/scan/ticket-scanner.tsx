@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type QrScanner from "qr-scanner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/registration-controls";
 import { useDashboardToken } from "@/components/dashboard-session";
@@ -12,6 +11,7 @@ import { useDashboardQuery } from "@/lib/use-dashboard-query";
 import type { OrganizerEvent } from "@/lib/dashboard";
 import { checkInRequestSchema, checkInResponseSchema, normalizeTicketCode, type CheckInRequest, type ScanResult as ScanResultData } from "@/lib/check-in";
 import { ScanResult } from "./scan-result";
+import { ManualTicketForm } from "./manual-ticket-form";
 import { EmailTicketSearch } from "./email-ticket-search";
 
 type Phase = "camera" | "manual" | "email" | "pending" | "result" | "cameraError" | "paused";
@@ -24,7 +24,6 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
   const eventId = String(events.find(event => event.id === selectedEventId)?.id ?? (events.length === 1 ? events[0].id : ""));
   const [phase, setPhase] = useState<Phase>("camera");
   const [result, setResult] = useState<ScanResultData | null>(null);
-  const [manualCode, setManualCode] = useState("");
   const [ready, setReady] = useState(false);
   const [cameraMessage, setCameraMessage] = useState("");
   const [flashAvailable, setFlashAvailable] = useState(false);
@@ -108,13 +107,12 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
 
   function resume(next: "camera" | "manual" | "email" = "camera") {
     locked.current = false; setReady(false); setFlashAvailable(false); setFlashOn(false);
-    setManualCode(""); setCameraMessage(""); setResult(null); setPhase(next);
+    setCameraMessage(""); setResult(null); setPhase(next);
   }
   async function toggleFlash() {
     try { await scanner.current?.toggleFlash(); setFlashOn(scanner.current?.isFlashOn() ?? false); }
     catch { setCameraMessage("La linterna no está disponible. Prueba a mover el teléfono a una zona con más luz."); }
   }
-  function submitManual(event: FormEvent<HTMLFormElement>) { event.preventDefault(); void validate(manualCode); }
 
   if (!eventsQuery.data) return <section role="status" className="space-y-6 py-12">
     <p>{eventsQuery.error ? "No pudimos cargar los eventos." : "Cargando eventos…"}</p>
@@ -142,16 +140,11 @@ export function TicketScanner({ initialEventId = "" }: { initialEventId?: string
         {phase === "result" && result && <ScanResult result={result} />}
         {phase === "email" && <EmailTicketSearch key={eventId} eventId={eventId} onValidate={code => { void validate(code); }} />}
         {(phase === "cameraError" || phase === "paused") && <div className="scan-placeholder" role="status"><h2 className="text-2xl font-semibold">{phase === "paused" ? "Cámara pausada" : "Cámara no disponible"}</h2><p>{phase === "paused" ? "Retoma la lectura cuando estés listo." : cameraMessage}</p></div>}
-        {phase === "manual" && <form id="manual-check-in" onSubmit={submitManual} className="scan-manual">
-          <h2 className="text-2xl font-semibold tracking-tight">Ingresar código</h2>
-          <p>Copia el código completo que aparece debajo del QR.</p>
-          <Field><FieldLabel htmlFor="ticket-code">Código de la entrada</FieldLabel><Input id="ticket-code" name="ticketCode" autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={256} value={manualCode} onChange={event => setManualCode(event.target.value)} aria-describedby="manual-help" /></Field>
-          <p id="manual-help" className="text-sm">Validar registra el ingreso de inmediato.</p>
-        </form>}
+        {phase === "manual" && <ManualTicketForm key={eventId} onValidate={validate} />}
       </div>
       {phase === "camera" && cameraMessage && <p role="status" className="text-sm">{cameraMessage}</p>}
       <div className="scan-controls">
-        {phase === "result" ? <><Button size="scan" className="w-full" onClick={() => resume()}>Escanear otra entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume("manual")}>Ingresar código</Button></> : phase === "manual" ? <><Button size="scan" className="w-full" type="submit" form="manual-check-in" disabled={!manualCode.trim()}>Validar entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button></> : phase === "email" ? <Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button> : phase === "pending" ? <Button size="scan" className="w-full" disabled>Confirmando ingreso…</Button> : <>
+        {phase === "result" ? <><Button size="scan" className="w-full" onClick={() => resume()}>Escanear otra entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume("manual")}>Ingresar código</Button></> : phase === "manual" ? <><Button size="scan" className="w-full" type="submit" form="manual-check-in">Validar entrada</Button><Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button></> : phase === "email" ? <Button size="scan" variant="secondary" className="w-full" onClick={() => resume()}>Usar cámara</Button> : phase === "pending" ? <Button size="scan" className="w-full" disabled>Confirmando ingreso…</Button> : <>
           {phase !== "camera" && <Button size="scan" className="w-full" onClick={() => resume()}>Abrir cámara</Button>}
           <div className="flex gap-4"><Button size="scan" variant="secondary" className="min-w-0 flex-1" onClick={() => resume("manual")}>Ingresar código</Button>{phase === "camera" && flashAvailable && <Button size="scan" variant="secondary" aria-pressed={flashOn} onClick={() => void toggleFlash()}>Linterna {flashOn ? "encendida" : "apagada"}</Button>}</div>
         </>}

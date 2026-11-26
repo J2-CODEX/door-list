@@ -113,6 +113,7 @@ function scannerHarness() {
     "@/components/dashboard-session": { useDashboardToken: () => "owner-token" },
     "@/lib/use-dashboard-query": { useDashboardQuery: () => ({ data: { events: [{ id: eventId, title: "Encuentro", status: "published" }] }, error: "" }) },
     "@/lib/check-in": contracts, "./scan-result": { ScanResult }, "./email-ticket-search": { EmailTicketSearch: "email-ticket-search" },
+    "./manual-ticket-form": { ManualTicketForm: "manual-ticket-form" },
   }, {
     navigator: { mediaDevices: { getUserMedia() {} } }, window: { isSecureContext: true }, document: fakeDocument,
     fetch: (url, options) => new Promise(resolve => requests.push({ url, options, resolve })),

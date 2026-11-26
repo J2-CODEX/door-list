@@ -3,7 +3,7 @@ import { ticketCodeSchema } from "./tickets";
 
 export const emailTicketSearchRequestSchema = z.object({
   eventId: z.uuid(),
-  email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
+  email: z.string().trim().toLowerCase().min(1, "Ingresa el email del asistente.").pipe(z.email("Ingresa el email completo del asistente.").max(254, "El email debe tener hasta 254 caracteres.")),
 });
 export type EmailTicketSearchRequest = z.infer<typeof emailTicketSearchRequestSchema>;
 
