@@ -10,9 +10,21 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 .env*
+!.env.example
+!**/.env.example
 /dist/
 /test-results/
 /playwright-report/
+/blob-report/
+/playwright/.cache/
+/coverage/
+
+# Generated visual reviews, test evidence, and document exports
+/.impeccable/review/
+/specs/*/evidence/
+/tmp/
+/output/
+
 /tests/e2e/.env.local
 .vercel
 *.tsbuildinfo

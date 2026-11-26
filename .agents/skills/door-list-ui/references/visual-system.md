@@ -18,7 +18,7 @@ Los valores ejecutables viven en `app/globals.css` y las primitivas de `componen
 | Superficie destacada | `#e9eedf` | Métricas y badges | `--accent-surface` |
 | Acento decorativo | `#d8e8a4` | Ilustraciones y selección | `--accent-decoration` |
 | Texto de acento | `#436329` | Texto sobre superficie destacada | `--accent-foreground` |
-| Texto auxiliar | Principal al 60 % | Ayudas y encabezados de tabla | Derivado de `foreground` |
+| Texto auxiliar | Principal al 75 % | Descripciones, metadatos, ayudas y placeholders | `--muted-foreground` |
 | Borde suave | Principal al 10 % | Tarjetas y filas | Derivado de `foreground` |
 | Borde de control | Principal al 20 % | Campos | Derivado de `foreground` |
 | Fondo de encabezado/hover de fila | Principal al 2,5 % | Tablas | Derivado de `foreground` |
@@ -26,6 +26,8 @@ Los valores ejecutables viven en `app/globals.css` y las primitivas de `componen
 | Campo inválido | `red-700` de Tailwind | Borde y foco de validación | Utilidad existente |
 
 Los tokens destino salvo `background` y `foreground` aún no están centralizados al crear la skill. Si el cambio necesita uno, defínelo una sola vez en `:root` y enlázalo en `@theme inline` con `--color-<nombre>`. Usa después su utilidad semántica. No asumas que un token destino ya existe. Reutiliza `bg-white` mientras no exista `surface`. No copies los hex al JSX de una pantalla.
+
+`muted-foreground` usa `color-mix(in srgb, var(--foreground) 75%, transparent)` y se aplica mediante `text-muted-foreground`. Comprueba al menos 4,5:1 para texto pequeño sobre crema, blanco y oliva suave.
 
 Texto blanco en la acción primaria. El acento y el verde claro son decorativos, no colores de texto pequeño sobre blanco. Los estados tienen texto además de color. No añadas modo oscuro, degradados u otra paleta sin petición expresa.
 

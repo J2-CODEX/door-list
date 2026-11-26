@@ -68,3 +68,41 @@ Usa `max-w-6xl px-6 py-8 sm:px-10` y separación de 48 px entre secciones. Si el
 - Correcto: `FieldLabel htmlFor="event-title"` con `Input id="event-title"`. Evita placeholder como única etiqueta.
 - Correcto: mensaje y reintento de error. Evita que `data?.registrations ?? []` oculte el error como vacío.
 - Correcto: refresh conserva registros. Evita sustituir filas existentes por skeleton en cada refetch.
+
+## Portada de evento
+
+`components/event-cover.tsx` compone el marco 16:9 en superficie oliva suave.
+`components/event-cover-image.tsx` es la hoja cliente mínima: Image `fill`,
+`unoptimized`, recorte centrado y fallback ante error, reiniciado por imageId/src.
+El editor sin imagen muestra «Sin imagen de portada». Las vistas públicas y del organizador conservan el marco con un placeholder
+cuando no hay imagen. En miniaturas usa un icono con nombre accesible
+«Sin imagen de portada»; en marcos amplios muestra el texto visible. Si una imagen falla, aparece «No pudimos cargar
+la imagen» conservando el marco, sin desplazar contenido. Título, fecha, lugar y
+reserva quedan fuera de la fotografía.
+El marco conserva sus dimensiones antes y después de carga o fallo.
+
+La alternativa usa la descripción propia normalizada o el título vigente, mediante
+`lib/event-covers.ts`; nunca el nombre de archivo. La cartelera usa miniaturas de 112 px y prioriza título, fecha, lugar y registro.
+El registro móvil ordena resumen, formulario, fotografía y descripción; en escritorio
+coloca resumen y contenido a la izquierda y formulario a la derecha. `EventSummary`
+ofrece `layout="registration"` para metadatos compactos sin otra tarjeta. El estado
+duplicado orienta a buscar el correo o pedir al organizador el reenvío ya existente,
+conserva los datos y permite corregir el correo sin repetir el mismo envío.
+
+`components/organizer-event-cover.tsx` resuelve la URL privada por evento e imagen.
+La hoja cliente solicita bytes con Bearer token, distingue carga y fallo y revoca
+la URL Blob al cambiar de imagen o desmontar. Nunca pone tokens en la URL.
+La consulta de metadatos usa la sesión verificada y RLS; la clave de servicio queda
+reservada para bytes y mutaciones. Guardar una portada actualiza la lista.
+
+Las páginas públicas permanecen
+Server Components y no esperan bytes de Storage para ofrecer la reserva.
+
+`app/organizador/event-cover-editor.tsx` usa campos nativos y acciones explícitas,
+sin formularios anidados ni otro diálogo. La ayuda precede al selector; usa
+`FieldDescription tone="readable"` para la ayuda nueva. Estado, error, conflicto y
+resultado incierto son distintos. Una coincidencia consultada tras perder respuesta
+no acredita autoría del guardado. Descartar o aceptar el estado actual es explícito.
+Los botones permiten ajuste de ancho y varias líneas con texto ampliado; al quitar
+la portada el foco vuelve al selector. Las URLs Blob se revocan al sustituirlas o
+desmontar. Guardar otros datos del evento conserva la portada local pendiente.

@@ -1,9 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
 import { FieldError } from "@/components/ui/registration-controls";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
@@ -38,30 +37,43 @@ async function refreshEvent(id: string): Promise<PublicEvent | null> {
 export default function RegistrationForm({ initialEvent }: { initialEvent: PublicEvent }) {
   const [event, setEvent] = useState<PublicEvent | null>(initialEvent);
   const [message, setMessage] = useState("");
+  const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ name: string; code: string; emailStatus: "sent" | "failed" } | null>(null);
   const form = useForm<RegistrationInput>({ resolver: zodResolver(registrationSchema), defaultValues: { eventId: initialEvent.id, ticketTypeId: "", name: "", email: "" } });
   const busy = form.formState.isSubmitting;
+  const email = useWatch({ control: form.control, name: "email" });
+  const duplicate = duplicateEmail !== null && email.trim().toLowerCase() === duplicateEmail;
+  const pendingFocus = useRef<"email" | "ticketTypeId" | null>(null);
+  const { setFocus } = form;
+  useEffect(() => {
+    if (!busy && pendingFocus.current) {
+      setFocus(pendingFocus.current);
+      pendingFocus.current = null;
+    }
+  }, [busy, setFocus]);
   async function submit(values: RegistrationInput) {
+    if (duplicate) { pendingFocus.current = "email"; return; }
     setMessage("");
     try {
       const result = await register(values);
-      if (result.code === "SUCCESS") { setSuccess({ name: event?.ticketTypes.find(t => t.id === values.ticketTypeId)?.name ?? "Tu entrada", code: result.ticketCode, emailStatus: result.emailStatus }); toast.success("¡Tu lugar está confirmado!"); if (result.emailStatus === "failed") toast.warning("Tu registro está confirmado, pero no pudimos enviar el correo. Guarda tu entrada desde aquí."); return; }
-      const messages = { EVENT_CLOSED: "Este evento ya no está disponible para registro.", TICKET_UNAVAILABLE: "Esta entrada ya no tiene cupo o dejó de estar disponible. Elige otra opción.", DUPLICATE: "Este email ya tiene un registro para este evento.", INVALID_INPUT: "Revisa los datos e inténtalo de nuevo.", ERROR: "No pudimos confirmar tu registro. Inténtalo de nuevo." };
-      const text = messages[result.code]; setMessage(text); toast.error(text);
+      if (result.code === "SUCCESS") { setSuccess({ name: event?.ticketTypes.find(t => t.id === values.ticketTypeId)?.name ?? "Tu entrada", code: result.ticketCode, emailStatus: result.emailStatus }); return; }
+      if (result.code === "DUPLICATE") { setDuplicateEmail(values.email.trim().toLowerCase()); pendingFocus.current = "email"; return; }
+      const messages = { EVENT_CLOSED: "Este evento ya no está disponible para registro.", TICKET_UNAVAILABLE: "Esta entrada ya no tiene cupo o dejó de estar disponible. Elige otra opción.", INVALID_INPUT: "Revisa los datos e inténtalo de nuevo.", ERROR: "No pudimos confirmar tu registro. Inténtalo de nuevo." };
+      const text = messages[result.code]; setMessage(text);
       if (result.code === "EVENT_CLOSED") setEvent(null);
       if (result.code === "TICKET_UNAVAILABLE") {
         form.setValue("ticketTypeId", "");
         try { setEvent(await refreshEvent(initialEvent.id)); } catch { setMessage(`${text} No pudimos actualizar las opciones; vuelve a intentarlo.`); }
-        form.setFocus("ticketTypeId");
+        pendingFocus.current = "ticketTypeId";
       }
-    } catch { const text = "No pudimos confirmar tu registro. Comprueba tu conexión y vuelve a intentarlo."; setMessage(text); toast.error(text); }
+    } catch { const text = "No pudimos confirmar tu registro. Comprueba tu conexión y vuelve a intentarlo."; setMessage(text); }
   }
-  if (success) return <section aria-labelledby="registration-title" className="min-w-0"><Card><CardHeader><p className="text-sm font-semibold text-accent-foreground">¡Nos vemos pronto!</p><h2 id="registration-title" tabIndex={-1} ref={el => el?.focus()} className="text-2xl font-semibold tracking-tight outline-none">Tu lugar está confirmado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6 wrap-anywhere">Te esperamos en {initialEvent.title} con tu entrada {success.name}.</p><Notice role={success.emailStatus === "failed" ? "alert" : undefined} className="mt-4">{success.emailStatus === "sent" ? "Te enviamos un correo con tu entrada y el QR. Revisa también tu carpeta de spam. Puedes abrirla y guardar su enlace desde aquí." : "Tu entrada está confirmada, pero no pudimos enviar el correo. Abre tu entrada y guarda el enlace o el QR para el día del evento. No necesitas registrarte otra vez."}</Notice><Link prefetch={false} href={`/entradas/${success.code}`} className={`${buttonStyles()} mt-6 w-full`}>Ver mi entrada y QR ↗</Link></CardContent></Card></section>;
-  if (!event) return <section aria-labelledby="registration-title"><Card><CardHeader><h2 id="registration-title" className="text-2xl font-semibold tracking-tight">Registro cerrado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6">Este evento ya no está disponible para registro.</p></CardContent></Card></section>;
+  if (success) return <section id="registro" tabIndex={-1} aria-labelledby="registration-title" className="min-w-0 scroll-mt-8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground"><Card><CardHeader><h2 id="registration-title" tabIndex={-1} ref={el => el?.focus()} className="text-2xl font-semibold tracking-tight outline-none">Tu lugar está confirmado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6 wrap-anywhere">Te esperamos en {initialEvent.title} con tu entrada {success.name}.</p><Notice role={success.emailStatus === "failed" ? "alert" : undefined} className="mt-4">{success.emailStatus === "sent" ? "Te enviamos un correo con tu entrada y el QR. Revisa también tu carpeta de spam. Puedes abrirla y guardar su enlace desde aquí." : "Tu entrada está confirmada, pero no pudimos enviar el correo. Abre tu entrada y guarda el enlace o el QR para el día del evento. No necesitas registrarte otra vez."}</Notice><Link prefetch={false} href={`/entradas/${success.code}`} className={`${buttonStyles()} mt-6 w-full`}>Ver mi entrada y QR</Link></CardContent></Card></section>;
+  if (!event) return <section id="registro" tabIndex={-1} aria-labelledby="registration-title" className="min-w-0 scroll-mt-8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground"><Card><CardHeader><h2 id="registration-title" tabIndex={-1} ref={el => el?.focus()} className="text-2xl font-semibold tracking-tight outline-none">Registro cerrado</h2></CardHeader><CardContent><p role="status" className="text-base leading-6">Este evento ya no está disponible para registro.</p></CardContent></Card></section>;
   const available = event.ticketTypes.some(t => t.available > 0);
-  return <section aria-labelledby="registration-title" className="min-w-0"><Card><CardHeader><h2 id="registration-title" className="text-2xl font-semibold tracking-tight">Reserva tu lugar</h2><CardDescription>Unos pocos datos y estarás listo para conectar.</CardDescription></CardHeader><CardContent>
+  return <section id="registro" tabIndex={-1} aria-labelledby="registration-title" className="min-w-0 scroll-mt-8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground"><Card><CardHeader><h2 id="registration-title" className="text-2xl font-semibold tracking-tight">Reserva tu lugar</h2><CardDescription>Recibirás tu entrada y el QR por correo electrónico.</CardDescription></CardHeader><CardContent>
     {!available && <Notice role="status" className="mb-6">{event.ticketTypes.length ? "Las entradas están agotadas." : "Aún no hay tipos de entrada disponibles."}</Notice>}
-    <form noValidate onSubmit={form.handleSubmit(submit)} aria-busy={busy} className="space-y-6">
+    <form noValidate onSubmit={submission => { void form.handleSubmit(submit)(submission); }} aria-busy={busy} className="space-y-6">
       <fieldset disabled={busy || !available} className="min-w-0 space-y-4"><legend className="sr-only">Datos del asistente</legend>
       <Controller
         name="ticketTypeId"
@@ -69,8 +81,8 @@ export default function RegistrationForm({ initialEvent }: { initialEvent: Publi
         render={({ field, fieldState }) => (
           <fieldset
             className="min-w-0 space-y-4"
-            aria-invalid={fieldState.invalid}
-            aria-describedby="ticketTypeId-error"
+            aria-invalid={Boolean(fieldState.invalid)}
+            aria-describedby={fieldState.error ? "ticketTypeId-error" : undefined}
           >
             <legend className="mb-4 text-sm font-medium">Tipo de entrada *</legend>
             {event.ticketTypes.map(ticket => {
@@ -90,12 +102,12 @@ export default function RegistrationForm({ initialEvent }: { initialEvent: Publi
                     ref={ticket.id === event.ticketTypes.find(t => t.available > 0)?.id ? field.ref : undefined}
                     disabled={disabled}
                     required
-                    aria-describedby={`${descriptionId} ticketTypeId-error`}
+                    aria-describedby={`${descriptionId}${fieldState.error ? " ticketTypeId-error" : ""}`}
                     className="size-5 shrink-0 accent-accent-foreground"
                   />
                   <span className="min-w-0">
                     <span className="block font-semibold wrap-anywhere">{ticket.name}</span>
-                    <span id={descriptionId} className="mt-1 block text-sm text-foreground/65">
+                    <span id={descriptionId} className="mt-1 block text-sm text-muted-foreground wrap-anywhere">
                       {soldOut ? "Sin cupo" : `${ticket.available} ${ticket.available === 1 ? "cupo disponible" : "cupos disponibles"}`}
                     </span>
                   </span>
@@ -106,9 +118,10 @@ export default function RegistrationForm({ initialEvent }: { initialEvent: Publi
           </fieldset>
         )}
       />
-      {(["name", "email"] as const).map(name => <Controller key={name} name={name} control={form.control} render={({ field, fieldState }) => <Field data-invalid={fieldState.invalid}><FieldLabel htmlFor={name}>{name === "name" ? "Tu nombre" : "Correo electrónico"} *</FieldLabel><Input {...field} id={name} type={name === "email" ? "email" : "text"} autoComplete={name} maxLength={name === "name" ? 200 : 254} placeholder={name === "name" ? "¿Cómo te llamas?" : "tu@ejemplo.com"} required aria-invalid={fieldState.invalid} aria-describedby={`${name}-error`} /><FieldError id={`${name}-error`} message={fieldState.error?.message} /></Field>} />)}
+      {(["name", "email"] as const).map(name => <Controller key={name} name={name} control={form.control} render={({ field, fieldState }) => <Field data-invalid={Boolean(fieldState.invalid)}><FieldLabel htmlFor={name}>{name === "name" ? "Tu nombre" : "Correo electrónico"} *</FieldLabel><Input {...field} id={name} type={name === "email" ? "email" : "text"} autoComplete={name} maxLength={name === "name" ? 200 : 254} placeholder={name === "name" ? "¿Cómo te llamas?" : "tu@ejemplo.com"} required aria-invalid={Boolean(fieldState.invalid) || (name === "email" && duplicate)} aria-describedby={[fieldState.error ? `${name}-error` : null, name === "email" && duplicate ? "duplicate-registration" : null].filter(Boolean).join(" ") || undefined} /><FieldError id={`${name}-error`} message={fieldState.error?.message} /></Field>} />)}
       </fieldset>
+      {duplicate && <Notice id="duplicate-registration" role="alert"><span className="block font-semibold">Ya tienes un registro con este correo</span><span className="mt-2 block">Busca el correo de Door List con tu entrada y revisa también la carpeta de spam. Si no lo encuentras, pide a quien organiza el evento que te reenvíe la entrada. No necesitas registrarte otra vez.</span><span className="mt-2 block">Si escribiste un correo equivocado, puedes corregirlo.</span></Notice>}
       {message && <Notice role="alert" tone="error">{message}</Notice>}
-      <Button type="submit" disabled={busy || !available} className="w-full">{busy ? "Confirmando registro…" : "Confirmar mi registro ↗"}</Button><p className="text-xs leading-relaxed text-foreground/60">Todos los campos son obligatorios. Un registro por correo para este evento. El cupo se confirma al enviar.</p>
+      {duplicate ? <Button type="button" variant="secondary" className="w-full" onClick={() => form.setFocus("email", { shouldSelect: true })}>Corregir correo</Button> : <Button type="submit" disabled={busy || !available} className="w-full">{busy ? "Confirmando registro…" : "Confirmar mi registro"}</Button>}<p className="text-xs leading-relaxed text-muted-foreground">Todos los campos son obligatorios. Un registro por correo para este evento. El cupo se confirma al enviar.</p>
     </form></CardContent></Card></section>;
 }

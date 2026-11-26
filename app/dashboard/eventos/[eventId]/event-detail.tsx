@@ -16,7 +16,11 @@ import { ResendTicketButton } from "./asistentes/resend-ticket-button";
 import { TicketSales } from "./asistentes/ticket-sales";
 import type { EventTicketSales } from "@/lib/export/attendees";
 
+import { OrganizerEventCover } from "@/components/organizer-event-cover";
+import { useDashboardToken } from "@/components/dashboard-session";
+
 export function EventDetail({ eventId }: { eventId: string }) {
+  const token = useDashboardToken();
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ search: "", ticketTypeId: "", page: 1 });
   useEffect(() => {
@@ -41,7 +45,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
   const totalPages = Math.max(1, Math.ceil(data.total / registrationPageSize));
   const clearFilters = () => { setSearch(""); setFilters({ search: "", ticketTypeId: "", page: 1 }); };
   const displayedPage = Number(new URL(dataUrl ?? "/", "http://localhost").searchParams.get("page") ?? 1);
-  return <div className="space-y-12"><div className="space-y-6"><Link href="/dashboard" className="inline-flex rounded-sm text-sm text-foreground/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground">← Mis eventos</Link><EventSummary title={event.title} description={event.description} startsAt={event.startsAt} venue={event.venue}><EventStatus status={event.status} /></EventSummary></div>
+  return <div className="space-y-12"><div className="space-y-6"><Link href="/dashboard" className="inline-flex rounded-sm text-sm text-foreground/60 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground">← Mis eventos</Link><div className="max-w-sm"><OrganizerEventCover eventId={event.id} token={token} cover={event.cover} title={event.title} sizes="(max-width: 480px) 100vw, 384px" /></div><EventSummary title={event.title} description={event.description} startsAt={event.startsAt} venue={event.venue}><EventStatus status={event.status} /></EventSummary></div>
     <section aria-label="Resumen del evento" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Personas registradas" value={event.registrationCount} detail={`De ${event.capacity} plazas totales`} accent /><Metric label="Plazas disponibles" value={Math.max(0, event.capacity - event.registrationCount)} detail="Respecto al aforo total del evento" /><Metric label="Ocupación del evento" value={`${occupancy(event.registrationCount, event.capacity)}%`} detail={`${event.ticketTypes.length} tipos de entrada configurados`} /><Metric label="Ingresos registrados" value={data.checkedInCount ?? 0} detail="Check-in de entradas · Se actualiza cada 15 s" /></section>
     <Link href={`/scan?eventId=${encodeURIComponent(event.id)}`} className="scan-panel-link">Abrir control de puerta →</Link>
     <RegistrationChart key={event.id} eventId={event.id} status={event.status} />

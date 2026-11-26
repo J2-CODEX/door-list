@@ -14,6 +14,14 @@ Cada usuario autenticado administra únicamente sus propios eventos gracias a la
 
 Cada evento tiene un límite de asistentes. La suma del aforo de sus tipos de entrada no puede superar ese límite; tampoco se puede reducir el límite por debajo de la suma asignada. La regla se comprueba en la interfaz y en la base de datos, incluso para operaciones concurrentes. Las fechas se introducen y muestran en la zona horaria del navegador.
 
+## Imágenes de portada
+
+Los eventos sin imagen muestran un placeholder en la cartelera, el registro y las vistas del organizador. Al guardar una portada, estas vistas muestran la imagen. Los eventos anteriores no reciben fotografías automáticamente.
+
+Aplica `20261125120000_event_cover_images.sql` con autorización explícita de acceso a la base de datos. Configura `SUPABASE_SECRET_KEY` en `.env.local` y en el servidor de producción para guardar y servir imágenes desde los buckets privados. Cópiala de **Settings → API Keys → Secret keys** del mismo proyecto que la URL pública (empieza por `sb_secret_`); nunca añadas el prefijo `NEXT_PUBLIC_`. Reinicia el servidor de desarrollo después de cambiar las variables. Se conserva `SUPABASE_SERVICE_ROLE_KEY` como alternativa para instalaciones antiguas; si están ambas, se usa `SUPABASE_SECRET_KEY`.
+
+La consulta del estado de la portada usa la sesión verificada del propietario y RLS; no necesita la clave de servicio. Un 503 al guardar o descargar puede indicar configuración incompleta; un 503 al consultar el estado requiere revisar la migración, los permisos o la conectividad. Las pruebas aisladas de `tests/fixtures/cover-preview` no necesitan credenciales ni acceden a Supabase.
+
 ## Gráfica del dashboard
 
 El detalle de cada evento incluye una gráfica de registros diarios con los estilos compartidos de Door List, consulta independiente, actualización manual y tabla accesible. Usa `America/Guayaquil` e incluye en cero todos los días desde la publicación hasta hoy; los filtros y la paginación de asistentes no afectan a la gráfica.

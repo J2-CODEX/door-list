@@ -13,7 +13,7 @@ export function CardTitle({ className, ...props }: ComponentProps<"div">) {
   return <div data-slot="card-title" className={cn("font-semibold tracking-tight", className)} {...props} />;
 }
 export function CardDescription({ className, ...props }: ComponentProps<"div">) {
-  return <div data-slot="card-description" className={cn("text-sm leading-relaxed text-foreground/60", className)} {...props} />;
+  return <div data-slot="card-description" className={cn("text-sm leading-relaxed text-muted-foreground", className)} {...props} />;
 }
 export function CardContent({ className, ...props }: ComponentProps<"div">) {
   return <div data-slot="card-content" className={cn("px-6", className)} {...props} />;

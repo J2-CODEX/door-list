@@ -8,8 +8,8 @@ export function Field({ className, ...props }: ComponentProps<"div">) {
 export function FieldLabel({ className, ...props }: ComponentProps<"label">) {
   return <label data-slot="field-label" className={cn("text-sm leading-snug font-medium group-data-[disabled=true]/field:opacity-50", className)} {...props} />;
 }
-export function FieldDescription({ className, ...props }: ComponentProps<"p">) {
-  return <p data-slot="field-description" className={cn("text-xs leading-relaxed text-foreground/60", className)} {...props} />;
+export function FieldDescription({ className, tone = "default", ...props }: ComponentProps<"p"> & { tone?: "default" | "readable" }) {
+  return <p data-slot="field-description" className={cn("text-xs leading-relaxed", tone === "readable" ? "text-foreground/75" : "text-muted-foreground", className)} {...props} />;
 }
 export function FieldError({ className, children, errors, ...props }: ComponentProps<"div"> & { errors?: Array<{ message?: string } | undefined> }) {
   const messages = [...new Set(errors?.map(error => error?.message).filter(Boolean))];

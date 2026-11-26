@@ -5,6 +5,7 @@ colors:
   background: "#f6f5f0"
   foreground: "#18372c"
   surface: "#ffffff"
+  muted-foreground: "color-mix(in srgb, var(--foreground) 75%, transparent)"
   primary-hover: "#315444"
   accent: "#719148"
   accent-surface: "#e9eedf"
@@ -196,7 +197,7 @@ y rojo reservado a errores.
 
 - **Crema** (`background`): fondo global.
 - **Blanco de superficie** (`surface`): campos, tarjetas, tablas y texto sobre botones primarios.
-- El texto auxiliar deriva de verde bosque, habitualmente al 60 %; los bordes de tarjeta
+- El texto auxiliar deriva de verde bosque, mediante `muted-foreground`, al 75 %; los bordes de tarjeta
   al 10 %, los de control al 20 % y el hover de fila al 2,5 %.
 - `chart-grid` y `chart-label` conservan las mezclas de CSS de la gráfica.
 
@@ -300,7 +301,7 @@ reales para la jerarquía de la página.
 ### Inputs / Fields
 
 Campos blancos con altura de 48 px, borde bosque al 20 %, sombra de control y radio
-compartido. El placeholder usa bosque al 40 %. Al enfocar, el borde pasa a oliva y
+compartido. El placeholder usa `muted-foreground`, igual que las ayudas legibles. Al enfocar, el borde pasa a oliva y
 aparece un anillo de 3 px al 25 %. `aria-invalid` activa borde rojo y, en `Input` y
 `NativeSelect`, cambia el anillo de foco a rojo al 20 %. `Textarea` conserva su diferencia de foco existente.
 `Textarea` tiene una altura mínima de 96 px y permite redimensionar verticalmente.
@@ -320,6 +321,12 @@ Cabecera blanca, borde inferior suave y marca «door list» con punto oliva.
 El logo usa 20 px y peso 700. Los enlaces del panel son de 14 px; el activo lleva
 subrayado oliva separado 8 px. La navegación permite wrap. El foco de los enlaces
 usa outline bosque de 2 px y separación de 4 px.
+
+### Public Event Discovery and Registration
+
+La cartelera prioriza título, fecha, lugar y acción; las imágenes opcionales son miniaturas 16:9 de hasta 112 px. Sin imagen conserva una miniatura con icono y nombre accesible «Sin imagen de portada». Las vistas amplias muestran ese texto en el marco 16:9. El organizador muestra también las portadas de borradores mediante peticiones autenticadas. El registro presenta resumen compacto y formulario antes de fotografía y descripción en móvil; en escritorio, contenido y formulario conviven en dos columnas. Un fallo de imagen conserva el marco para evitar saltos y se distingue de una portada ausente. En miniaturas, `EventCover variant="thumbnail"` usa un icono con nombre accesible para que el mensaje no se recorte con texto ampliado.
+
+Los duplicados conservan los datos y guían hacia el correo previo o el reenvío del organizador. La recuperación pública automática por email no está implementada. El formulario anticipa la entrega del QR por correo.
 
 ### Tables and Query States
 

@@ -5,7 +5,7 @@ export type PublicEventResponse = Omit<PublicEvent, "starts_at"> & { startsAt: s
 // Only this module translates JSON field casing; database columns remain unchanged.
 export function serializePublicEvent(event: PublicEvent): PublicEventResponse {
   const { starts_at: startsAt, ...rest } = event;
-  return { ...rest, startsAt };
+  return { ...rest, coverRevision: event.coverRevision ?? null, cover: event.cover ?? null, startsAt };
 }
 export function deserializePublicEvent(event: PublicEventResponse): PublicEvent {
   const { startsAt, ...rest } = event;

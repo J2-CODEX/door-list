@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { z } from "zod";
+import { COVER_METADATA_COLUMNS, projectCoverRow } from '../lib/supabase/event-cover-mapping.ts';
 
 // Isolate the data layer and handlers: no network or database access.
 function loadModule(path, dependencies, env = {}) {
@@ -56,13 +57,16 @@ test("server event query always filters by owner and preserves exact counts beyo
     order: () => query,
     then: resolve => resolve({ data: [{ id: eventId, title: "Event", starts_at: "date", registrations: [{ count: 2501 }], ticket_types: [{ id: "type", name: "General", capacity: 3000, registrations: [{ count: 2501 }] }] }], error: null }),
   };
-  const { loadOrganizerEvents } = loadModule("../lib/organizer-events.ts", {});
+  const { loadOrganizerEvents } = loadModule("../lib/organizer-events.ts", { './supabase/event-cover-mapping': { COVER_METADATA_COLUMNS, projectCoverRow } });
   const [event] = await loadOrganizerEvents({ from: name => { assert.equal(name, "events"); return query; } }, "owner", eventId);
   assert.ok(calls.some(call => call.join() === "eq,owner_id,owner"));
   assert.ok(calls.some(call => call.join() === `eq,id,${eventId}`));
   assert.equal(event.registrationCount, 2501);
   assert.equal(event.ticketTypes[0].registrationCount, 2501);
   assert.ok(!("starts_at" in event));
+  assert.equal(event.cover, null);
+  assert.equal(event.coverRevision, null);
+  assert.ok(!calls.find(call => call[0] === 'select')[1].includes('object_path'));
 });
 test("owner receives paginated camelCase attendee data with private no-store caching", async () => {
   const calls = [];
